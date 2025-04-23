@@ -6,6 +6,8 @@ import com.th.iqpcmbiz.entity.vo.output.UserInfoRespVO;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
+import java.util.List;
+
 /**
  * @ClassName UserInfoProcessor
  * @Description 用户信息转换组件
@@ -21,4 +23,6 @@ public interface UserInfoProcessor {
     UserInfoRespVO po2Vo(UserInfoDO userInfoDO);
 
     UserInfoDO vo2Po(UserInfoReqVO reqVO);
+
+    List<UserInfoRespVO> poList2VoList(List<UserInfoDO> userInfoDO);
 }

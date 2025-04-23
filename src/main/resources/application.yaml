@@ -11,8 +11,41 @@ spring:
     #
     type: com.alibaba.druid.pool.DruidDataSource
     druid:
-      initial-size: 5
-      max-active: 20
+      # 初始连接数
+      initialSize: 5
+      # 最小连接池数量
+      minIdle: 10
+      # 最大连接池数量
+      maxActive: 20
+      # 配置获取连接等待超时的时间
+      maxWait: 60000
+      # 配置连接超时时间
+      connectTimeout: 30000
+      # 配置网络超时时间
+      socketTimeout: 60000
+      # 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒
+      timeBetweenEvictionRunsMillis: 60000
+      # 配置一个连接在池中最小生存的时间，单位是毫秒
+      minEvictableIdleTimeMillis: 300000
+      # 配置一个连接在池中最大生存的时间，单位是毫秒
+      maxEvictableIdleTimeMillis: 900000
+      # 配置检测连接是否有效
+      validationQuery: SELECT 1 FROM DUAL
+      testWhileIdle: true
+      testOnBorrow: false
+      testOnReturn: false
+      webStatFilter:
+        enabled: true
+      filter:
+        stat:
+          enabled: true
+          # 慢SQL记录
+          log-slow-sql: true
+          slow-sql-millis: 1000
+          merge-sql: true
+        wall:
+          config:
+            multi-statement-allow: true
 
 # myBatis配置
 mybatis:
@@ -27,24 +60,17 @@ mybatis:
 logging:
   level:
     org.springframework: warn
-
-# 防止XSS攻击
-xss:
-  # 过滤开关
-  enabled: true
-  # 排除链接（多个用逗号分隔）
-  # excludes: /system/notice/*
-  # 匹配链接
-  # urlPatterns: /system/*,/monitor/*,/tool/*
-
-# 防止csrf攻击
-csrf:
-  # 过滤开关
-  enabled: true
-  # 白名单（多个用逗号分隔）
-  whites:
+    org.apache.ibatis: DEBUG
+    com.th.ipqcmbiz.mapper: DEBUG
 
 # Swagger配置
-swagger:
-  # 是否开启swagger
-  enabled: true
+springdoc:
+  swagger-ui:
+    enabled: true
+
+pagehelper:
+  helper-dialect: oracle     # 指定数据库方言
+  reasonable: true          # 页码溢出自动修正（如-1转为1）
+  support-methods-arguments: true  # 支持接口参数传递分页
+  params: count=countSql    # 优化COUNT查询性能
+  auto-runtime-dialect: true  # 多数据源时自动识别方言

@@ -1,7 +1,9 @@
 package com.th.iqpcmbiz.controller.user;
 
+import com.github.pagehelper.PageInfo;
 import com.th.iqpcmbiz.controller.common.BaseController;
 import com.th.iqpcmbiz.entity.common.Result;
+import com.th.iqpcmbiz.entity.vo.input.UserIdListReqVO;
 import com.th.iqpcmbiz.entity.vo.input.UserInfoReqVO;
 import com.th.iqpcmbiz.entity.vo.output.UserInfoRespVO;
 import com.th.iqpcmbiz.service.user.UserService;
@@ -32,4 +34,11 @@ public class UserController extends BaseController {
     public Result<UserInfoRespVO> queryUserById(@Valid @RequestBody UserInfoReqVO userInfo) {
         return success(userService.queryUserBysUserInfo(userInfo));
     }
+
+    @Operation(summary = "分页用户查询", description = "根据用户编号列表查询用户信息")
+    @PostMapping(value = "/query-user-list-by-user-id-list")
+    public Result<PageInfo<UserInfoRespVO>> queryUserListByIds(@Valid @RequestBody UserIdListReqVO userIdListReqVO) {
+        return success(userService.queryUserListByIds(userIdListReqVO));
+    }
+
 }

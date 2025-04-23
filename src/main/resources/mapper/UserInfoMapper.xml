@@ -8,14 +8,14 @@
     </resultMap>
 
     <select id="queryUserById" resultType="com.th.iqpcmbiz.entity.po.UserInfoDO" parameterType="java.lang.String">
-        SELECT *
+        SELECT UserID, UserName
         FROM USER_INFO
         WHERE UserId = #{userId}
     </select>
 
-    <select id="queryUserBysUserInfo" resultType="com.th.iqpcmbiz.entity.po.UserInfoDO"
+    <select id="queryUserByUserInfo" resultType="com.th.iqpcmbiz.entity.po.UserInfoDO"
             parameterType="com.th.iqpcmbiz.entity.po.UserInfoDO">
-        SELECT *
+        SELECT UserID,UserName
         FROM USER_INFO
         <where>
             <if test="userName != null &amp; userName != ''">
@@ -23,6 +23,18 @@
             </if>
             <if test="userId != null &amp; userId != ''">
                 AND UserId = #{userId}
+            </if>
+        </where>
+    </select>
+    <select id="queryUserListByUserIds" resultType="com.th.iqpcmbiz.entity.po.UserInfoDO">
+        SELECT UserId,UserName
+        FROM USER_INFO
+        <where>
+            <if test="userIds != null and userIds.size() > 0">
+                AND UserId in
+                <foreach collection="userIds" item="id" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
             </if>
         </where>
     </select>
