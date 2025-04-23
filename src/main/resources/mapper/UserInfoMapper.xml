@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.th.iqpcmbiz.mapper.UserInfoMapper">
+
+    <resultMap id="userResultMap" type="com.th.iqpcmbiz.entity.po.UserInfoDO">
+        <id property="userId" javaType="String" column="userId" jdbcType="VARCHAR"/>
+        <result property="userName" javaType="String" column="userName" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <select id="queryUserById" resultType="com.th.iqpcmbiz.entity.po.UserInfoDO" parameterType="java.lang.String">
+        SELECT *
+        FROM USER_INFO
+        WHERE UserId = #{userId}
+    </select>
+
+    <select id="queryUserBysUserInfo" resultType="com.th.iqpcmbiz.entity.po.UserInfoDO"
+            parameterType="com.th.iqpcmbiz.entity.po.UserInfoDO">
+        SELECT *
+        FROM USER_INFO
+        <where>
+            <if test="userName != null &amp; userName != ''">
+                AND UserName = #{userName}
+            </if>
+            <if test="userId != null &amp; userId != ''">
+                AND UserId = #{userId}
+            </if>
+        </where>
+    </select>
+
+</mapper>
