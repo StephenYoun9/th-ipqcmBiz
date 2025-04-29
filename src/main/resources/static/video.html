@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Title</title>
+    </head>
+    <body>
+        <video autoplay controls id="videoElement"></video>
+        <script src="https://cdn.jsdelivr.net/npm/jmuxer@latest/dist/jmuxer.min.js"></script>
+        <script>
+            const videoElement = document.getElementById('videoElement');
+            const jmuxer = new JMuxer({
+                node: videoElement,
+                mode: 'video',
+                flushingTime: 0  // 实时模式
+            });
+            // 连接WebSocket
+            const ws = new WebSocket('ws://localhost:3030/video-stream');
+            ws.binaryType = 'arraybuffer';
+
+            ws.onmessage = (event) => {
+                const data = new Uint8Array(event.data);
+                jmuxer.feed({video: data});
+            };
+        </script>
+    
+    </body>
+</html>

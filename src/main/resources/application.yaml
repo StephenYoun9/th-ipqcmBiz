@@ -46,7 +46,12 @@ spring:
         wall:
           config:
             multi-statement-allow: true
-
+  # 模板引擎
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    mode: HTML5
+    cache: false # 开发时关闭缓存:ml-citation{ref="6,8" data="citationList"}
 # myBatis配置
 mybatis:
   mapperLocations: classpath*:mapper/**/*Mapper.xml

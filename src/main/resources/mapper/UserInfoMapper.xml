@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.th.iqpcmbiz.mapper.UserInfoMapper">
+<mapper namespace="com.th.ipqcmbiz.mapper.UserInfoMapper">
 
-    <resultMap id="userResultMap" type="com.th.iqpcmbiz.entity.po.UserInfoDO">
+    <resultMap id="userResultMap" type="com.th.ipqcmbiz.entity.po.UserInfoDO">
         <id property="userId" javaType="String" column="userId" jdbcType="VARCHAR"/>
         <result property="userName" javaType="String" column="userName" jdbcType="VARCHAR"/>
     </resultMap>
 
-    <select id="queryUserById" resultType="com.th.iqpcmbiz.entity.po.UserInfoDO" parameterType="java.lang.String">
+    <select id="queryUserById" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO" parameterType="java.lang.String">
         SELECT UserID, UserName
         FROM USER_INFO
         WHERE UserId = #{userId}
     </select>
 
-    <select id="queryUserByUserInfo" resultType="com.th.iqpcmbiz.entity.po.UserInfoDO"
-            parameterType="com.th.iqpcmbiz.entity.po.UserInfoDO">
+    <select id="queryUserByUserInfo" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO"
+            parameterType="com.th.ipqcmbiz.entity.po.UserInfoDO">
         SELECT UserID,UserName
         FROM USER_INFO
         <where>
@@ -26,7 +26,7 @@
             </if>
         </where>
     </select>
-    <select id="queryUserListByUserIds" resultType="com.th.iqpcmbiz.entity.po.UserInfoDO">
+    <select id="queryUserListByUserIds" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO">
         SELECT UserId,UserName
         FROM USER_INFO
         <where>

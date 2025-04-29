@@ -11,7 +11,7 @@
     <groupId>com.th</groupId>
     <artifactId>th-ipqcmBiz</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>iqpcmBiz</name>
+    <name>iqpcmBiz</name>`
     <description>iqpcmBiz</description>
     <url/>
     <licenses>
@@ -129,6 +129,24 @@
             <groupId>com.github.pagehelper</groupId>
             <artifactId>pagehelper-spring-boot-starter</artifactId>
             <version>1.4.6</version>
+        </dependency>
+
+        <!-- thymeleaf模板引擎 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+
+        <!-- JavaCV（包含FFmpeg） -->
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>javacv-platform</artifactId>
+            <version>1.5.7</version>
+        </dependency>
+        <!-- WebSocket -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
 
     </dependencies>
