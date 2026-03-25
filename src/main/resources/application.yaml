@@ -52,6 +52,10 @@ spring:
     suffix: .html
     mode: HTML5
     cache: false # 开发时关闭缓存:ml-citation{ref="6,8" data="citationList"}
+  web:
+    resources:
+      static-locations: classpath:/static/
+      add-mappings: true
 # myBatis配置
 mybatis:
   mapperLocations: classpath*:mapper/**/*Mapper.xml
@@ -79,3 +83,6 @@ pagehelper:
   support-methods-arguments: true  # 支持接口参数传递分页
   params: count=countSql    # 优化COUNT查询性能
   auto-runtime-dialect: true  # 多数据源时自动识别方言
+server:
+  forward-headers-strategy: native
+
