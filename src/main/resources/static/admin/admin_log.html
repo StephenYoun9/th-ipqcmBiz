@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>智能工具柜 - 日志审计</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<!-- 顶部导航 -->
+<div class="header">
+  <div class="logo">智能工具柜管理系统</div>
+  <div class="user-info">
+    <a href="admin_index.html" class="btn btn-default">返回控制台</a>
+    <span>当前登录：管理员（admin）</span>
+  </div>
+</div>
+
+<!-- 查询条件区 -->
+<div class="card">
+  <h2>日志审计</h2>
+  <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;">
+    <div class="form-group" style="width: 200px;">
+      <label>操作人</label>
+      <input type="text" class="form-control" placeholder="工号/姓名">
+    </div>
+    <div class="form-group" style="width: 200px;">
+      <label>开始时间</label>
+      <input type="date" class="form-control">
+    </div>
+    <div class="form-group" style="width: 200px;">
+      <label>结束时间</label>
+      <input type="date" class="form-control">
+    </div>
+    <div class="form-group" style="width: 200px;">
+      <label>操作类型</label>
+      <select class="form-control">
+        <option value="">全部</option>
+        <option value="borrow">借工具</option>
+        <option value="return">还工具</option>
+        <option value="employee">员工管理</option>
+        <option value="tool">工具管理</option>
+      </select>
+    </div>
+    <div class="form-group" style="display: flex; align-items: flex-end;">
+      <label style="margin-right: 5px;">仅看异常</label>
+      <input type="checkbox">
+    </div>
+    <button class="btn btn-primary" style="height: 38px; margin-top: 24px;">查询</button>
+    <button class="btn btn-default" style="height: 38px; margin-top: 24px;">导出日志</button>
+  </div>
+</div>
+
+<!-- 日志列表 -->
+<div class="card">
+  <table class="table">
+    <thead>
+    <tr>
+      <th>操作人</th>
+      <th>操作时间</th>
+      <th>操作类型</th>
+      <th>操作详情</th>
+      <th>异常标记</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+      <td>张三（001）</td>
+      <td>2026-03-05 09:30:25</td>
+      <td>借工具</td>
+      <td>借取扳手（W001），柜门A01开启</td>
+      <td>无</td>
+    </tr>
+    <tr>
+      <td>管理员（admin）</td>
+      <td>2026-03-05 10:15:40</td>
+      <td>员工管理</td>
+      <td>新增员工王五（003），录入指纹特征</td>
+      <td>无</td>
+    </tr>
+    <tr style="background-color: #f8d7da;">
+      <td>李四（002）</td>
+      <td>2026-03-05 11:20:10</td>
+      <td>还工具</td>
+      <td>归还工具影像识别不匹配，操作失败</td>
+      <td>⚠️ 异常</td>
+    </tr>
+    </tbody>
+  </table>
+
+  <!-- 分页 -->
+  <div style="margin-top: 15px; display: flex; justify-content: center; gap: 10px;">
+    <button class="btn btn-default">上一页</button>
+    <span>第1页 / 共10页</span>
+    <button class="btn btn-default">下一页</button>
+  </div>
+</div>
+
+<!-- 异常告警提示 -->
+<div class="card">
+  <div class="alert alert-danger">
+    发现1条异常日志：李四（002）还工具时影像识别不匹配，请及时核查！
+  </div>
+</div>
+</body>
+</html>

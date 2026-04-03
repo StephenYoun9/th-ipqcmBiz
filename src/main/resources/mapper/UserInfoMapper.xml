@@ -3,15 +3,27 @@
 <mapper namespace="com.th.ipqcmbiz.mapper.UserInfoMapper">
 
     <resultMap id="userResultMap" type="com.th.ipqcmbiz.entity.po.UserInfoDO">
-        <id property="userId" javaType="String" column="userId" jdbcType="VARCHAR"/>
-        <result property="userName" javaType="String" column="userName" jdbcType="VARCHAR"/>
+        <id property="userId" javaType="String" column="UserId" jdbcType="VARCHAR"/>
+        <result property="userName" javaType="String" column="UserName" jdbcType="VARCHAR"/>
+        <result property="password" javaType="String" column="Password" jdbcType="VARCHAR"/>
+        <result property="status" javaType="Integer" column="Status" jdbcType="INTEGER"/>
+        <result property="userRole" javaType="Integer" column="UserRole" jdbcType="INTEGER"/>
+        <result property="faceRegistered" javaType="String" column="FaceRegistered" jdbcType="VARCHAR"/>
     </resultMap>
 
+
     <select id="queryUserById" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO" parameterType="java.lang.String">
-        SELECT UserID, UserName
+        SELECT UserId, UserName,Password,Status,UserRole,FaceRegistered
         FROM USER_INFO
         WHERE UserId = #{userId}
     </select>
+
+    <insert id="addUser">
+        INSERT INTO USER_INFO (Id,UserId, UserName, PassWord, Status, UserRole,FaceRegistered,CreateTime)
+            VALUES (user_info_seq.NEXTVAL,#{userId}, #{userName}, #{password}, #{status}, #{userRole},#{faceRegistered}, SYSDATE)
+    </insert>
+
+
 
     <select id="queryUserByUserInfo" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO"
             parameterType="com.th.ipqcmbiz.entity.po.UserInfoDO">
@@ -25,6 +37,7 @@
                 AND UserId = #{userId}
             </if>
         </where>
+        Order By UserRole
     </select>
     <select id="queryUserListByUserIds" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO">
         SELECT UserId,UserName
@@ -37,6 +50,18 @@
                 </foreach>
             </if>
         </where>
+    </select>
+    <select id="queryUserListByIdOrName" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO">
+
+        SELECT UserId, UserName,Password,Status,UserRole,FaceRegistered
+        FROM USER_INFO
+        <where>
+            <if test="keyword != null &amp; keyword != ''">
+                UserId like '%'||#{keyword}||'%'
+                OR UserName like '%'||#{keyword}||'%'
+            </if>
+        </where>
+
     </select>
 
 </mapper>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8">
+        <title>智能工具柜 - 新增员工</title>
+        <link href="../css/style.css" rel="stylesheet">
+        <style>
+            .add-employee-container {
+                max-width: 600px;
+                margin: 50px auto;
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            .form-group {
+                margin-bottom: 20px;
+            }
+            .form-group label {
+                display: block;
+                margin-bottom: 8px;
+                font-weight: 500;
+            }
+            .form-control {
+                width: 100%;
+                padding: 10px 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+            .btn-group {
+                display: flex;
+                gap: 10px;
+                justify-content: flex-end;
+                margin-top: 20px;
+            }
+            .status-success {
+                color: #2ecc71;
+                display: none;
+            }
+            .status-warning {
+                color: #e67e22;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="add-employee-container">
+            <h2 style="margin-bottom: 20px;">新增员工</h2>
+            
+            <div class="form-group">
+                <label>姓名</label>
+                <input class="form-control" id="empName" placeholder="请输入员工姓名" type="text">
+            </div>
+            
+            <div class="form-group">
+                <label>工号</label>
+                <input class="form-control" id="empNo" placeholder="请输入员工工号" type="text">
+            </div>
+            
+            <div class="form-group">
+                <label>登录密码</label>
+                <input class="form-control" id="password" placeholder="请输入登录密码" type="password">
+            </div>
+            
+            <div class="form-group">
+                <label>权限</label>
+                <select class="form-control" id="empRole">
+                    <option value="1">普通员工</option>
+                    <option value="0">管理员</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>生物特征录入</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="btn btn-primary" onclick="gotoFaceRegister()">录入人脸</button>
+                    <span class="status-warning" id="faceStatus">未录入</span>
+                    <span class="status-success" id="faceSuccess">已录入</span>
+                </div>
+            </div>
+            
+            <div class="btn-group">
+                <button class="btn btn-default" onclick="closePage()">取消</button>
+                <button class="btn btn-success" onclick="saveEmployee()">保存</button>
+            </div>
+        </div>
+        
+        <script>
+            // 页面加载时检查人脸录入状态（从sessionStorage读取）
+            window.onload = function () {
+                const faceRegisterStatus = sessionStorage.getItem('faceRegisterStatus');
+                if (faceRegisterStatus === 'success') {
+                    document.getElementById('faceStatus').style.display = 'none';
+                    document.getElementById('faceSuccess').style.display = 'inline-block';
+                    // 读取临时员工数据回显（防止页面刷新丢失）
+                    const tempEmpData = JSON.parse(sessionStorage.getItem('tempEmployeeData') || '{}');
+                    if (tempEmpData.name) document.getElementById('empName').value = tempEmpData.name;
+                    if (tempEmpData.no) document.getElementById('empNo').value = tempEmpData.no;
+                    if (tempEmpData.password) document.getElementById('password').value = tempEmpData.password;
+                    if (tempEmpData.role) document.getElementById('empRole').value = tempEmpData.role;
+                } else {
+                    // 清空状态，避免残留
+                    sessionStorage.removeItem('faceRegisterStatus');
+                }
+            }
+
+            // 跳转到人脸录入页面
+            function gotoFaceRegister() {
+                const name = document.getElementById('empName').value.trim();
+                const no = document.getElementById('empNo').value.trim();
+                const password = document.getElementById('password').value.trim();
+                const role = document.getElementById('empRole').value;
+
+                if (!name) {
+                    alert('请输入姓名');
+                    return;
+                }
+                if (!no) {
+                    alert('请输入工号');
+                    return;
+                }
+
+                // 存入sessionStorage（临时存储，会话级）
+                sessionStorage.setItem('tempEmployeeData', JSON.stringify({
+                    name, no, password, role, fromAddPage: true // 标记来源
+                }));
+                // 清空旧的录入状态
+                sessionStorage.removeItem('faceRegisterStatus');
+
+                window.location.href = `../face/register_face.html`;
+            }
+
+            // 保存员工信息
+            function saveEmployee() {
+                // 1. 获取表单数据
+                const userName = document.getElementById('empName').value.trim();
+                const userId = document.getElementById('empNo').value.trim();
+                const password = document.getElementById('password').value.trim();
+                const userRole = document.getElementById('empRole').value;
+
+                // 2. 表单验证
+                if (!userName) {
+                    alert('请输入员工姓名！');
+                    return;
+                }
+                if (!userId) {
+                    alert('请输入员工工号！');
+                    return;
+                }
+                if (!password) {
+                    alert('请输入登录密码！');
+                    return;
+                }
+
+                // 3. 构造请求参数
+                const employeeData = {
+                    userName: userName,
+                    userId: userId,
+                    password: password,
+                    userRole: userRole,
+                    faceRegistered: document.getElementById('faceSuccess').style.display === 'inline-block'
+                };
+
+                // 4. 发送请求到后端
+                fetch('http://localhost:3030/user/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(employeeData)
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.code === 200) {
+                            alert('新增员工成功！');
+                            // 清空临时数据
+                            sessionStorage.removeItem('tempEmployeeData');
+                            sessionStorage.removeItem('faceRegisterStatus');
+                            window.close();
+                        } else {
+                            let msg = data.message || '提交失败';
+                            const errorData = data.data;
+                            if (errorData && typeof errorData === 'object') {
+                                try {
+                                    const firstField = Object.keys(errorData)[0];
+                                    const firstMsg = errorData[firstField];
+                                    msg += `，${firstField}：${firstMsg}`;
+                                } catch (e) {}
+                            }
+                            alert('新增失败：' + msg);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('保存失败：', error);
+                        alert('新增员工失败，请稍后重试！' + error);
+                    });
+            }
+
+            // 关闭当前页面
+            function closePage() {
+                // 清空临时数据
+                sessionStorage.removeItem('tempEmployeeData');
+                sessionStorage.removeItem('faceRegisterStatus');
+                window.close();
+            }
+        </script>
+    </body>
+</html>

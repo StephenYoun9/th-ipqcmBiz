@@ -3,9 +3,11 @@ package com.th.ipqcmbiz.entity.vo.input;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import lombok.Builder;
 import lombok.Data;
 
 @Data
+@Builder
 public class UserInfoReqVO {
 
     @Schema(description = "用户编号", example = "000001")
@@ -14,6 +16,17 @@ public class UserInfoReqVO {
     private String userId;
 
     @Schema(description = "用户姓名", example = "张三")
+    @NotBlank(message = "用户姓名不能为空")
     private String userName;
+
+    @Schema(description = "用户密码", example = "000000")
+    private String password;
+
+    @Schema(description = "用户角色", example = "0")
+    private Integer userRole;
+
+    @Schema(description = "人脸录入状态", example = "0")
+    private Boolean faceRegistered;
+
 
 }

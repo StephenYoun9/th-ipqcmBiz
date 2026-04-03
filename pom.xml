@@ -156,6 +156,26 @@
             <version>2.0.32</version> <!-- 可使用最新版本 -->
         </dependency>
 
+        <!-- opencv4.5.5-1 -->
+        <dependency>
+            <groupId>org.openpnp</groupId>
+            <artifactId>opencv</artifactId>
+            <version>4.5.5-1</version>
+        </dependency>
+
+        <!-- 密码加密 -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
+        <!-- 工具类：Base64、图片处理 -->
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.15</version>
+        </dependency>
+
     </dependencies>
 
     <build>

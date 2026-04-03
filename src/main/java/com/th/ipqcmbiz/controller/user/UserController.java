@@ -16,12 +16,33 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.List;
+
 @Controller
-@RequestMapping(value = "/th/user", name = "用户管理")
+@RequestMapping(value = "/user", name = "用户管理")
 public class UserController extends BaseController {
 
     @Resource
     private UserService userService;
+
+    /**
+     * @Description 添加用户
+     * @Param userInfo 用户信息
+     * @Return Result<UserInfoRespVO>
+     * @Author 杨兴明
+     * @Date 2026/3/30 16:18
+     */
+    @Operation(summary = "新增用户", description = "根据用户编号查询用户信息")
+    @PostMapping(value = "/add")
+    public Result<Void> addUser(@Valid @RequestBody UserInfoReqVO userInfo) {
+        return success(userService.addUser(userInfo));
+    }
+
+    @Operation(summary = "用户列表查询", description = "根据用户id或名称查询用户列表")
+    @PostMapping(value = "/query-user-list-by-id-or-name")
+    public Result<List<UserInfoRespVO>> queryUserListByIdOrName(@RequestParam(value = "keyword", required = false) String keyword) {
+        return success(userService.queryUserListByIdOrName(keyword));
+    }
 
     @Operation(summary = "用户查询", description = "根据用户编号查询用户信息")
     @PostMapping(value = "/query-user-by-id")

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8">
+        <title>智能工具柜 - 人脸采集系统</title>
+        <link href="../css/style.css" rel="stylesheet">
+        <style>
+            /* 人脸采集专属样式补充 */
+            .face-collect-card {
+                padding: 20px;
+            }
+
+            .input-box {
+                display: flex;
+                gap: 10px;
+                margin: 20px 0;
+                align-items: center;
+            }
+
+            .input-box input {
+                flex: 1;
+                padding: 8px 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                min-width: 200px;
+            }
+
+            .status, .guide {
+                padding: 10px 15px;
+                border-radius: 4px;
+                margin: 15px 0;
+            }
+
+            .status {
+                background-color: #f5f7fa;
+                color: #333;
+            }
+
+            .guide {
+                background-color: #e8f4fd;
+                color: #3498db;
+                border: 1px solid #d1e7fd;
+            }
+
+            .video-box {
+                background-color: white;
+                border-radius: 8px;
+                padding: 15px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                margin: 20px 0;
+                text-align: center;
+            }
+
+            .video-box img {
+                border-radius: 4px;
+                border: 1px solid #eee;
+            }
+
+            .progress {
+                font-size: 16px;
+                color: #666;
+                margin-top: 15px;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- 顶部导航（和其他页面保持一致） -->
+        <div class="header">
+            <div class="logo">智能工具柜管理系统</div>
+            <div class="user-info">
+                <span id="loginUser">当前登录：管理员（admin）</span>
+                <a class="btn btn-default" href="../index.html">退出登录</a>
+            </div>
+        </div>
+        
+        <!-- 核心内容区（卡片化布局，和其他页面一致） -->
+        <div class="card face-collect-card">
+            <h2>多方向人脸采集</h2>
+            
+            <div class="input-box">
+                <input disabled="disabled" id="userName" placeholder="请输入姓名" type="text"/>
+                <input disabled="disabled" hidden="hidden" id="userId" type="text"/>
+                <button class="btn btn-primary" onclick="clickStarCollect()">开始采集</button>
+                <!-- 新增返回按钮 -->
+                <button class="btn btn-default" onclick="backToEmployeePage()">返回员工管理</button>
+            </div>
+            
+            <div class="status" id="status">
+                状态：等待采集
+            </div>
+            
+            <div class="guide" id="guide">
+                请输入姓名，点击开始
+            </div>
+            
+            <div class="video-box">
+                <img height="480" id="videoFrame" style="background:#eee;" width="640"/>
+            </div>
+            
+            <div class="progress">
+                进度：<span id="progress">0/10</span>
+            </div>
+        </div>
+        
+        <script>
+            // 页面加载时从sessionStorage读取员工数据
+            window.onload = function () {
+                // 读取临时员工数据
+                const tempEmpData = JSON.parse(sessionStorage.getItem('tempEmployeeData') || '{}');
+                if (tempEmpData.name) {
+                    document.getElementById('userName').value = tempEmpData.name;
+                    document.getElementById('loginUser').textContent = `当前采集：${tempEmpData.name}（工号：${tempEmpData.no || '未填写'}）`;
+                }
+                if (tempEmpData.no) {
+                    document.getElementById('userId').value = tempEmpData.no;
+                }
+                console.log('从sessionStorage读取的员工数据：', tempEmpData);
+            }
+
+            let collectInterval = null;
+
+            // 开始采集
+            function clickStarCollect() {
+                const userName = document.getElementById('userName').value.trim();
+                if (!userName) {
+                    alert("请输入姓名");
+                    return;
+                }
+                if (collectInterval) {
+                    alert("正在采集人脸，请等待...");
+                    return;
+                }
+                startCollect();
+                collectInterval = setInterval(() => {
+                    const progressText = document.getElementById('progress').innerText;
+                    console.log('当前采集进度：', progressText);
+                    if (progressText.trim() === '10/10') {
+                        clearInterval(collectInterval);
+                        collectInterval = null;
+                        // 主动调用释放函数（兜底）
+                        if (typeof releaseCamera === 'function') {
+                            releaseCamera();
+                        }
+                        setTimeout(faceCollectSuccess, 1500);
+                    }
+                }, 500);
+            }
+
+            // 人脸采集成功回调
+            function faceCollectSuccess() {
+                // 标记人脸采集成功状态
+                sessionStorage.setItem('faceRegisterStatus', 'success');
+
+                // 读取来源标记
+                const tempEmpData = JSON.parse(sessionStorage.getItem('tempEmployeeData') || '{}');
+                if (tempEmpData.fromAddPage) {
+                    // 从新增页面进入，返回新增页面
+                    window.location.href = `../admin/add_employee.html`;
+                } else {
+                    // 从员工列表进入，返回员工列表
+                    window.location.href = `../admin/admin_employee.html`;
+                    // 可选：如果需要给列表页传状态，也可以存sessionStorage
+                    sessionStorage.setItem('recentFaceRegisterEmpNo', tempEmpData.no);
+                }
+            }
+
+            // 手动返回按钮逻辑
+            function backToEmployeePage() {
+                if (collectInterval) {
+                    clearInterval(collectInterval);
+                    collectInterval = null;
+                }
+                if (typeof releaseCamera === 'function') {
+                    releaseCamera();
+                }
+
+                // 读取来源标记
+                const tempEmpData = JSON.parse(sessionStorage.getItem('tempEmployeeData') || '{}');
+                if (tempEmpData.fromAddPage) {
+                    // 返回新增员工页面
+                    window.location.href = `../admin/add_employee.html`;
+                } else {
+                    // 原有逻辑：返回员工列表
+                    window.location.href = '../admin/admin_employee.html';
+                }
+            }
+        
+        </script>
+        <script src="../js/camera.js"></script>
+    </body>
+</html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>智能工具柜 - 借工具</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<!-- 顶部导航 -->
+<div class="header">
+  <div class="logo">智能工具柜管理系统</div>
+  <div class="user-info">
+    <a href="../employee/employee_index.html" class="btn btn-default">返回主界面</a>
+    <span>当前登录：张三（工号：001）</span>
+  </div>
+</div>
+
+<!-- 筛选区 -->
+<div class="card">
+  <h2>借工具</h2>
+  <div style="display: flex; gap: 10px; margin-top: 10px;">
+    <div class="form-group" style="flex: 1;">
+      <input type="text" class="form-control" placeholder="按工具名称/编号搜索">
+    </div>
+    <div class="form-group" style="width: 200px;">
+      <select class="form-control">
+        <option value="">全部工具类型</option>
+        <option value="hand">手动工具</option>
+        <option value="electric">电动工具</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" style="height: 38px; margin-top: 24px;">查询</button>
+  </div>
+</div>
+
+<!-- 工具列表 -->
+<div class="card">
+  <h3>可借工具列表</h3>
+  <table class="table">
+    <thead>
+    <tr>
+      <th>选择</th>
+      <th>工具名称</th>
+      <th>工具编号</th>
+      <th>存放位置</th>
+      <th>状态</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+      <td><input type="radio" name="tool" value="W001"></td>
+      <td>扳手</td>
+      <td>W001</td>
+      <td>A01柜</td>
+      <td>可借</td>
+    </tr>
+    <tr>
+      <td><input type="radio" name="tool" value="S002"></td>
+      <td>螺丝刀</td>
+      <td>S002</td>
+      <td>A02柜</td>
+      <td>可借</td>
+    </tr>
+    <tr>
+      <td><input type="radio" name="tool" value="D004"></td>
+      <td>电钻</td>
+      <td>D004</td>
+      <td>B01柜</td>
+      <td>可借</td>
+    </tr>
+    </tbody>
+  </table>
+  <div style="margin-top: 15px;">
+    <button class="btn btn-primary" id="borrowBtn">确认借取</button>
+  </div>
+</div>
+
+<!-- 操作提示区 -->
+<div class="card">
+  <h3>操作提示</h3>
+  <div class="alert alert-info" id="tips">
+    请选择要借取的工具，确认后对应柜门将自动开启，请在3分钟内取出工具！
+  </div>
+</div>
+
+<script>
+  // 模拟借取操作
+  document.getElementById('borrowBtn').addEventListener('click', function() {
+    const selectedTool = document.querySelector('input[name="tool"]:checked');
+    if (!selectedTool) {
+      document.getElementById('tips').className = 'alert alert-danger';
+      document.getElementById('tips').innerText = '请先选择要借取的工具！';
+      return;
+    }
+
+    document.getElementById('tips').className = 'alert alert-success';
+    document.getElementById('tips').innerText = `已选择工具：${selectedTool.value}，对应柜门已开启，请取出工具，系统将自动采集影像确认！`;
+  });
+</script>
+</body>
+</html>

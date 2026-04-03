@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.th.ipqcmbiz.mapper.face.FaceMapper">
+
+    <resultMap id="FaceResultMap" type="com.th.ipqcmbiz.entity.po.FaceInfoDO">
+        <result column="ID" property="id"/>
+        <result column="UserId" property="userId"/>
+        <result column="UserName" property="userName"/>
+        <result column="FaceFeature" property="faceFeature" jdbcType="BLOB" typeHandler="org.apache.ibatis.type.BlobTypeHandler"/>
+        <result column="Direction" property="direction"/>
+        <result column="CreateTime" property="createTime"/>
+    </resultMap>
+
+    <insert id="insertFaceWithName" parameterType="com.th.ipqcmbiz.entity.po.FaceInfoDO">
+        Insert Into FACE_DATABASE(ID,UserId,UserName,FaceFeature,Direction,CreateTime)
+        VALUES
+        (FACE_DATABASE_SEQ.NEXTVAL,#{userId},#{userName},#{faceFeature},#{direction},CURRENT_TIMESTAMP)
+    </insert>
+
+    <select id="selectAllFace" resultMap="FaceResultMap">
+        SELECT ID,UserId,UserName,FaceFeature,Direction,CreateTime FROM FACE_DATABASE
+    </select>
+
+</mapper>

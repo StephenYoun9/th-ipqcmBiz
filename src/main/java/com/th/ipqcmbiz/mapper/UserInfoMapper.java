@@ -8,6 +8,24 @@ import java.util.List;
 
 @Mapper
 public interface UserInfoMapper {
+
+    /**
+    * @Description 添加用户
+    * @Param userInfo 用户信息
+    * @Return int
+    * @Author 杨兴明
+    * @Date 2026/4/1 14:35
+    */
+    int addUser(UserInfoDO userInfo);
+
+    /**
+     * @Description 根据用户id或名称查询用户列表
+     * @Param keyword 关键字，用户id或名称
+     * @Return 用户列表
+    * @Author 杨兴明
+    * @Date 2026/4/1 14:35
+    */
+    List<UserInfoDO> queryUserListByIdOrName(@Param("keyword") String keyword);
     /**
      * @Description 根据用户编号查询用户信息
      * @Param userId 用户编号
