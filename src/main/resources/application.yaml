@@ -56,6 +56,12 @@ spring:
     resources:
       static-locations: classpath:/static/
       add-mappings: true
+  data:
+    redis:
+      host: localhost
+      database: 0
+      password:
+      port: 6379
 # myBatis配置
 mybatis:
   mapperLocations: classpath*:mapper/**/*Mapper.xml
@@ -86,3 +92,9 @@ pagehelper:
 server:
   forward-headers-strategy: native
 
+camera:
+  ip: 192.168.100.16
+  port: 554           # HTTP 用 80 端口！
+  username: admin
+  password: 123456
+  stream-path: /main  # HTTP 流固定用这个
