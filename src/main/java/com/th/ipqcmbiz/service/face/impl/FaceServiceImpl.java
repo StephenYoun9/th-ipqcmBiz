@@ -3,8 +3,8 @@ package com.th.ipqcmbiz.service.face.impl;
 import com.th.ipqcmbiz.entity.common.Result;
 import com.th.ipqcmbiz.entity.po.FaceInfoDO;
 import com.th.ipqcmbiz.mapper.face.FaceMapper;
-import com.th.ipqcmbiz.recognition.FaceRecognition;
 import com.th.ipqcmbiz.service.face.FaceService;
+import com.th.ipqcmbiz.utils.face.FaceRecognitionUtil;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Resource;
@@ -15,6 +15,8 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.CascadeClassifier;
 import org.opencv.videoio.VideoCapture;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -35,6 +37,27 @@ public class FaceServiceImpl implements FaceService {
 
     @Resource
     private FaceMapper faceMapper;
+
+    @Resource
+    private FaceRecognitionUtil faceRecognitionUtil;
+
+
+    // IP摄像头配置
+    @Value("${camera.ip}")
+    private String cameraIp;
+
+    @Value("${camera.port:554}")
+    private int cameraPort;
+
+    @Value("${camera.username}")
+    private String cameraUsername;
+
+    @Value("${camera.password}")
+    private String cameraPassword;
+
+    @Value("${camera.stream-path}")
+    private String streamPath;
+
 
     // 摄像头/人脸检测核心对象
     private VideoCapture cap;
@@ -91,15 +114,8 @@ public class FaceServiceImpl implements FaceService {
 
         // 2. 初始化人脸检测器
         try {
-            String cascadePath = FaceRecognition.class.getClassLoader().getResource("haarcascade_frontalface_default.xml").getPath();
-            cascadePath = cascadePath.replaceFirst("/", "").replace("%20", " ");
-            log.info("人脸检测器模型路径：{}", cascadePath);
-
-            detector = new CascadeClassifier(cascadePath);
-            if (detector.empty()) {
-                log.error("人脸检测器加载失败：模型文件为空，路径={}", cascadePath);
-                throw new RuntimeException("人脸检测模型加载失败，请检查文件路径是否正确！");
-            }
+            ClassPathResource resource = new ClassPathResource("haarcascade_frontalface_default.xml");
+            detector = new CascadeClassifier(resource.getFile().getAbsolutePath());
             log.info("人脸检测器初始化成功");
         } catch (Exception e) {
             log.error("人脸检测器初始化异常", e);
@@ -300,6 +316,8 @@ public class FaceServiceImpl implements FaceService {
                     .direction(direction)
                     .build();
             faceMapper.insertFaceWithName(faceInfo);
+            // 清空人脸缓存
+            faceRecognitionUtil.clearFaceCache();
         } catch (Exception e) {
             log.error("保存人脸特征失败", e); // 替换printStackTrace为日志
         }
@@ -332,8 +350,8 @@ public class FaceServiceImpl implements FaceService {
             // 重新初始化
             init();
             return Result.success("摄像头重新初始化成功");
-        }catch (Exception e) {
-            return Result.error(500,"摄像头重新初始化失败");
+        } catch (Exception e) {
+            return Result.error(500, "摄像头重新初始化失败");
         }
     }
 }
