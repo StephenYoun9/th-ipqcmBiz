@@ -126,6 +126,11 @@
                     alert("请输入姓名");
                     return;
                 }
+                // 新增：检查是否正在初始化
+                if (window.isReiniting) {
+                    alert("正在初始化摄像头，请稍候...");
+                    return;
+                }
                 if (collectInterval) {
                     alert("正在采集人脸，请等待...");
                     return;

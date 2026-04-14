@@ -1,14 +1,26 @@
 let userName = "";
 let userId = "";
 let collecting = false;
-let progress = 0;
+let requestFailCount = 0;
+const MAX_FAIL = 10;
+let lastBlobUrl = null;
+let isReiniting = false;
+// 【优化】请求间隔改为100ms（每秒10帧，人眼无感知卡顿，同时降低服务器压力）
+const FRAME_INTERVAL = 100;
+// 防抖定时器
+let loopTimer = null;
 
-// loop方法：失败次数限制+初始化失败提示
-let requestFailCount = 0; // 新增：请求失败计数器
-const MAX_FAIL_COUNT = 5; // 最大失败次数，超过则停止请求
-
-// 前置检查（调用后端状态接口，判断核心对象是否初始化）
 function startCollect() {
+    // 强制重置所有状态
+    collecting = false;
+    requestFailCount = 0;
+    isReiniting = false;
+    if (loopTimer) clearTimeout(loopTimer);
+    if (lastBlobUrl) {
+        URL.revokeObjectURL(lastBlobUrl);
+        lastBlobUrl = null;
+    }
+
     userName = document.getElementById("userName").value.trim();
     userId = document.getElementById("userId").value.trim();
 
@@ -21,108 +33,106 @@ function startCollect() {
         return;
     }
 
-    // 新增：先检查后端核心对象是否初始化
-    updateStatus("检查摄像头状态...");
-    fetch("/face/status")
-        .then(res => res.json())
+    if (isReiniting) {
+        alert("正在初始化摄像头，请稍候...");
+        return;
+    }
+    isReiniting = true;
+    updateStatus("正在初始化摄像头...");
+
+    fetch("/face/releaseCamera")
+        .then(() => fetch("/face/reinit"))
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP错误：${res.status} ${res.statusText}`);
+            return res.json();
+        })
         .then(data => {
-            // 调用reinit接口触发后端重试初始化
-            fetch("/face/reinit")
-                .then(res => res.json())
-                .then(reinitData => {
-                    if (reinitData.code === 200) {
-                        collecting = true;
-                        updateStatus("正在打开摄像头...");
-                        loop();
-                    } else {
-                        updateStatus("摄像头初始化失败：" + reinitData.message);
-                        alert("摄像头初始化失败：" + reinitData.message);
-                    }
-                });
+            if (data.code !== 200) {
+                alert("摄像头初始化失败：" + data.msg);
+                isReiniting = false;
+                return;
+            }
+            collecting = true;
+            isReiniting = false;
+            updateStatus("正在采集...");
+            loop();
         })
         .catch(err => {
-            updateStatus("检查摄像头状态失败：" + err.message);
-            alert("无法连接到后端，请检查服务是否正常！");
+            console.error("后端服务异常详情：", err);
+            alert("服务异常，请检查后端服务：" + err.message);
+            isReiniting = false;
         });
 }
 
-// 循环请求后端画面
+/**
+ * 【优化】帧循环：避免重复请求，保证画面流畅
+ */
 function loop() {
     if (!collecting) return;
 
+    // 防抖：避免重复发起请求
+    if (loopTimer) clearTimeout(loopTimer);
+
     fetch("/face/frame?userName=" + encodeURIComponent(userName) + "&userId=" + encodeURIComponent(userId))
         .then(res => {
-            // 先判断响应是否正常
-            if (!res.ok) {
-                throw new Error(`接口返回异常：${res.status}`);
-            }
+            if (!res.ok) throw new Error("帧请求失败");
             return res.blob();
         })
         .then(blob => {
-            // 重置失败计数器
+            // 先释放旧blob，再创建新的，彻底解决内存泄漏
+            if (lastBlobUrl) {
+                URL.revokeObjectURL(lastBlobUrl);
+            }
+            lastBlobUrl = URL.createObjectURL(blob);
+            // 【优化】只在src变化时更新，避免重复渲染
+            const videoFrame = document.getElementById("videoFrame");
+            if (videoFrame.src !== lastBlobUrl) {
+                videoFrame.src = lastBlobUrl;
+            }
             requestFailCount = 0;
-            let url = URL.createObjectURL(blob);
-            document.getElementById("videoFrame").src = url;
 
-            // 请求状态接口
+            // 异步更新状态，不阻塞画面
             fetch("/face/status")
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById("progress").innerText = data.progress + "/10";
-                    document.getElementById("guide").innerText = data.direction;
-                    document.getElementById("status").innerText = "状态：" + data.msg;
+                    document.getElementById("progress").innerText = data.data.progress + "/10";
+                    document.getElementById("guide").innerText = data.data.direction;
+                    document.getElementById("status").innerText = "状态：" + data.data.msg;
 
-                    if (data.progress >= 10) {
+                    if (data.data.progress >= 10) {
                         collecting = false;
                         updateStatus("采集完成！");
                     }
                 });
 
-            setTimeout(loop, 50);
+            // 下一次循环
+            loopTimer = setTimeout(loop, FRAME_INTERVAL);
         })
         .catch(err => {
             requestFailCount++;
-            console.error("帧请求失败（次数：" + requestFailCount + "）：", err);
-            // 超过最大失败次数，停止采集并提示
-            if (requestFailCount >= MAX_FAIL_COUNT) {
+            console.error("帧请求失败：", requestFailCount, err);
+            if (requestFailCount > MAX_FAIL) {
                 collecting = false;
-                updateStatus("采集失败：摄像头初始化异常，请联系管理员检查设备！");
-                // 提示用户并提供重试按钮（可选）
-                alert("摄像头初始化失败，无法采集人脸！\n1. 检查摄像头是否被其他程序占用\n2. 刷新页面重试\n3. 联系管理员检查设备");
+                updateStatus("连接失败，请刷新重试");
+                alert("摄像头连接失败，请检查设备或刷新页面重试");
                 return;
             }
-            // 失败后延迟重试，避免高频请求
-            setTimeout(loop, 500);
+            // 失败后快速重试
+            loopTimer = setTimeout(loop, 50);
         });
 }
 
-// 更新状态
 function updateStatus(msg) {
     document.getElementById("status").innerText = "状态：" + msg;
 }
 
-// 页面离开时停止采集
+// 页面离开时彻底释放资源
 window.onbeforeunload = function () {
     collecting = false;
-};
-window.onbeforeunload = function () {
-    collecting = false;
-    if (typeof releaseCamera === 'function') {
-        releaseCamera();
+    isReiniting = false;
+    if (loopTimer) clearTimeout(loopTimer);
+    if (lastBlobUrl) {
+        URL.revokeObjectURL(lastBlobUrl);
     }
+    fetch("/face/releaseCamera");
 };
-
-function releaseCamera() {
-    console.log("主动调用后端释放摄像头接口");
-    // 替换为你的实际接口地址
-    fetch('/face/releaseCamera', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    }).then(res => {
-        console.log("摄像头释放接口调用成功");
-    }).catch(err => {
-        console.error("摄像头释放接口调用失败", err);
-    });
-}

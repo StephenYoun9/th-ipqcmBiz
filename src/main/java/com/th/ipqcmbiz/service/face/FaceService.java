@@ -35,4 +35,6 @@ public interface FaceService {
 
     Result reinitCamera();
 
+    byte[] getLatestJpegFrame();
+
 }

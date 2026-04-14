@@ -10,9 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.IOException;
+import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,29 +29,55 @@ public class FaceController extends BaseController {
     private FaceService faceService;
 
     @GetMapping("/frame")
-    public void frame(@RequestParam String userName,@RequestParam String userId, HttpServletResponse response) throws IOException {
-        response.setContentType("image/jpeg");
-        BufferedImage img = faceService.getFrame(userId,userName);
-        if (img != null) ImageIO.write(img, "jpg", response.getOutputStream());
+    public void getFrame(
+            @RequestParam String userId,
+            @RequestParam String userName,
+            HttpServletResponse response
+    ) {
+        try {
+            // 先初始化用户信息
+            faceService.getFrame(userId, userName);
+            // 直接拿预压缩好的JPEG字节数组
+            byte[] jpegBytes = faceService.getLatestJpegFrame();
+            if (jpegBytes == null || jpegBytes.length == 0) {
+                response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                return;
+            }
+
+            // 设置响应头，浏览器直接渲染
+            response.setContentType("image/jpeg");
+            response.setContentLength(jpegBytes.length);
+            response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+            response.setHeader("Pragma", "no-cache");
+
+            // 直接写出，零处理延迟
+            try (OutputStream os = response.getOutputStream()) {
+                os.write(jpegBytes);
+                os.flush();
+            }
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        }
     }
 
     @GetMapping("/status")
-    public Map<String, Object> status() {
+    public Result<Map<String, Object>> status() {
+
         Map<String, Object> map = new HashMap<>();
         map.put("progress", faceService.getProgress());
         map.put("direction", faceService.getDirection());
         map.put("msg", faceService.getProgress() >= 10 ? "完成" : "采集中");
-        return map;
+        return Result.success(map);
     }
 
     @GetMapping("/releaseCamera")
-    public void releaseCamera() {
+    public Result release() {
         faceService.releaseCamera();
+        return Result.success("已释放");
     }
 
-    // 新增：手动重试初始化的方法（供前端/监控调用）
-    @GetMapping("/reinit") // 新增接口，允许手动触发重新初始化
-    public Result reinitCamera() {
-        return success(faceService.reinitCamera());
+    @GetMapping("/reinit")
+    public Result reinit() {
+        return faceService.reinitCamera();
     }
 }
