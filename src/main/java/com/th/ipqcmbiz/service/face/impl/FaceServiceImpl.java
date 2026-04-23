@@ -24,6 +24,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -103,13 +104,16 @@ public class FaceServiceImpl implements FaceService {
 
     @PostConstruct
     public void init() {
-        if (resourceLock.tryLock()) {
-            try {
-                doInit();
-            } finally {
-                resourceLock.unlock();
-            }
-        }
+        // 【临时禁用】防止与 FaceAuthServiceImpl 资源冲突
+        // 后续将删除此服务或迁移到仅在需要时初始化
+        log.warn("FaceServiceImpl 已禁用，避免与 FaceAuthServiceImpl 资源冲突");
+        // if (resourceLock.tryLock()) {
+        //     try {
+        //         doInit();
+        //     } finally {
+        //         resourceLock.unlock();
+        //     }
+        // }
     }
 
     /**
@@ -144,7 +148,7 @@ public class FaceServiceImpl implements FaceService {
             // 抑制FFmpeg冗余日志
             org.bytedeco.ffmpeg.global.avutil.av_log_set_level(org.bytedeco.ffmpeg.global.avutil.AV_LOG_ERROR);
             grabber.start();
-            log.info("✅ 摄像头启动成功，分辨率：{}x{}，原始像素格式：{}",
+            log.info(" 摄像头启动成功，分辨率：{}x{}，原始像素格式：{}",
                     grabber.getImageWidth(), grabber.getImageHeight(), grabber.getPixelFormat());
 
             // 初始化人脸检测器
@@ -152,7 +156,7 @@ public class FaceServiceImpl implements FaceService {
             File cascadeFile = res.getFile();
             detector = new CascadeClassifier(cascadeFile.getAbsolutePath());
             converter = new Java2DFrameConverter();
-            log.info("✅ 人脸检测器初始化成功");
+            log.info(" 人脸检测器初始化成功");
 
             // 清空缓存
             latestFrameCache.set(null);
@@ -160,7 +164,7 @@ public class FaceServiceImpl implements FaceService {
             // 启动帧采集线程
             startFrameGrabThread();
         } catch (Exception e) {
-            log.error("❌ 初始化失败", e);
+            log.error(" 初始化失败", e);
             releaseCameraResource(true);
             throw new RuntimeException("人脸采集服务初始化失败：" + e.getMessage());
         }
@@ -243,10 +247,18 @@ public class FaceServiceImpl implements FaceService {
      */
     private void compressToJpeg(BufferedImage image) {
         if (image == null) return;
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            ImageIO.write(image, "jpeg", baos);
+        try {
+            BufferedImage copy = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
+            Graphics2D g = copy.createGraphics();
+            g.drawImage(image, 0, 0, null);
+            g.dispose();
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(copy, "jpeg", baos);
             baos.flush();
             latestJpegCache.set(baos.toByteArray());
+            baos.close();
+            copy.flush();
         } catch (Exception e) {
             log.warn("JPEG压缩失败", e);
         }
@@ -321,8 +333,8 @@ public class FaceServiceImpl implements FaceService {
                                 log.info("📸 人脸采集进度：{}/{}", progress, MAX_PROGRESS);
                                 if (progress >= MAX_PROGRESS) {
                                     collectCompleted = true;
-                                    direction = "✅ 采集完成！";
-                                    log.info("✅ 用户[{}]人脸采集完成", currentUserId);
+                                    direction = " 采集完成！";
+                                    log.info(" 用户[{}]人脸采集完成", currentUserId);
                                 }
                             } else {
                                 direction = "采集中：" + progress + "/" + MAX_PROGRESS + "（保存失败，请保持姿势）";
@@ -333,7 +345,7 @@ public class FaceServiceImpl implements FaceService {
                         }
                     } else if (progress >= MAX_PROGRESS) {
                         collectCompleted = true;
-                        direction = "✅ 采集完成！";
+                        direction = " 采集完成！";
                     } else {
                         direction = "检测到人脸，采集中：" + progress + "/" + MAX_PROGRESS;
                     }
@@ -416,10 +428,10 @@ public class FaceServiceImpl implements FaceService {
                     .build();
             faceMapper.insertFaceWithName(info);
             faceRecognitionUtil.clearFaceCache();
-            log.info("✅ 用户[{}]人脸特征保存成功，提示语：{}", userId, direction);
+            log.info(" 用户[{}]人脸特征保存成功，提示语：{}", userId, direction);
             return true;
         } catch (Exception e) {
-            log.error("❌ 用户[{}]人脸保存异常", userId, e);
+            log.error(" 用户[{}]人脸保存异常", userId, e);
             return false;
         }
     }
@@ -523,7 +535,7 @@ public class FaceServiceImpl implements FaceService {
             latestFrameCache.set(null);
             latestJpegCache.set(null);
             resetCollectState();
-            log.info("✅ 摄像头资源释放完成");
+            log.info(" 摄像头资源释放完成");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("等待线程停止时被中断", e);

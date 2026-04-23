@@ -52,4 +52,18 @@ public interface UserInfoMapper {
      * @Date 2025/4/23 11:25
      */
     List<UserInfoDO> queryUserListByUserIds(List<String> userIds);
+
+    /**
+     * @Description 根据用户ID查询用户信息
+     * @Param userId 用户编号
+     * @Return 用户信息
+     */
+    UserInfoDO selectByUserId(@Param("userId") String userId);
+
+    /**
+     * @Description 更新用户人脸录入状态
+     * @Param user 用户信息
+     * @Return int
+     */
+    int updateFaceEnrolled(UserInfoDO user);
 }

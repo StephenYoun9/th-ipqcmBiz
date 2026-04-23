@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人脸识别登录</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .login-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            display: flex;
+            max-width: 900px;
+            width: 90%;
+        }
+        .video-section {
+            flex: 1;
+            background: #1a1a1a;
+            position: relative;
+            min-height: 400px;
+        }
+        .video-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        #video-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0,0,0,0.3);
+        }
+        .video-placeholder {
+            color: #666;
+            font-size: 16px;
+            text-align: center;
+        }
+        .login-section {
+            flex: 1;
+            padding: 40px;
+        }
+        h1 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        button {
+            flex: 1;
+            padding: 14px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        .btn-face {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+        .btn-face:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(17, 153, 142, 0.4);
+        }
+        .btn-face:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .status-bar {
+            margin-top: 20px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+        }
+        .status-label { color: #666; }
+        .status-value { font-weight: 600; }
+        .status-value.success { color: #10b981; }
+        .status-value.error { color: #ef4444; }
+        .status-value.warning { color: #f59e0b; }
+        .mode-switch {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .mode-switch a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .mode-switch a:hover {
+            text-decoration: underline;
+        }
+        .result-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .result-modal.show { display: flex; }
+        .modal-content {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+        }
+        .modal-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        .modal-title {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .modal-message {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .hidden { display: none; }
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="video-section">
+            <div class="video-container">
+                <img id="video-canvas" src="/face-video/mjpeg" alt="摄像头画面">
+                <div class="video-overlay" id="video-overlay">
+                    <div class="video-placeholder">正在连接摄像头...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="login-section">
+            <h1>人脸识别登录</h1>
+            <p class="subtitle">使用人脸或密码登录系统</p>
+
+            <div class="form-group">
+                <label>用户ID</label>
+                <input type="text" id="userId" placeholder="请输入用户ID" autocomplete="username">
+            </div>
+
+            <div class="form-group" id="password-group">
+                <label>密码</label>
+                <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password">
+            </div>
+
+            <div class="btn-group">
+                <button class="btn-primary" onclick="passwordLogin()">密码登录</button>
+                <button class="btn-face" id="face-btn" onclick="startFaceLogin()">人脸登录</button>
+            </div>
+
+            <div class="status-bar hidden" id="status-bar">
+                <div class="status-item">
+                    <span class="status-label">识别状态</span>
+                    <span class="status-value" id="face-status">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">相似度</span>
+                    <span class="status-value" id="similarity">-</span>
+                </div>
+            </div>
+
+            <div class="mode-switch">
+                <a href="/face/enroll.html">前往录入人脸 →</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="result-modal" id="result-modal">
+        <div class="modal-content">
+            <div class="modal-icon" id="modal-icon">✓</div>
+            <div class="modal-title" id="modal-title">登录成功</div>
+            <div class="modal-message" id="modal-message">欢迎回来！</div>
+            <button class="btn-primary" onclick="closeModal()">确定</button>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = window.location.origin;
+        let faceLoginStarted = false;
+
+        function updateStatus(status, message, type) {
+            document.getElementById('face-status').textContent = message;
+            document.getElementById('face-status').className = 'status-value ' + type;
+            document.getElementById('status-bar').classList.remove('hidden');
+        }
+
+        function startFaceLogin() {
+            const userId = document.getElementById('userId').value.trim();
+            if (!userId) {
+                alert('请输入用户ID');
+                return;
+            }
+
+            if (faceLoginStarted) {
+                return;
+            }
+
+            faceLoginStarted = true;
+            const faceBtn = document.getElementById('face-btn');
+            faceBtn.disabled = true;
+            faceBtn.textContent = '识别中...';
+
+            updateStatus('face-status', '正在识别...', 'warning');
+
+            fetch(BASE_URL + '/face/recognize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: userId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                faceLoginStarted = false;
+                faceBtn.disabled = false;
+                faceBtn.textContent = '人脸登录';
+
+                if (data.code === 200 && data.data.matched) {
+                    document.getElementById('similarity').textContent =
+                        (data.data.similarity * 100).toFixed(1) + '%';
+                    document.getElementById('similarity').className = 'status-value success';
+                    showResult(true, '登录成功', '欢迎 ' + data.data.userName + '！');
+                } else {
+                    document.getElementById('similarity').textContent =
+                        data.data.similarity ? (data.data.similarity * 100).toFixed(1) + '%' : '-';
+                    document.getElementById('similarity').className = 'status-value error';
+                    showResult(false, '识别失败', data.data.message || '人脸不匹配，请使用密码登录');
+                }
+            })
+            .catch(err => {
+                faceLoginStarted = false;
+                faceBtn.disabled = false;
+                faceBtn.textContent = '人脸登录';
+                updateStatus('face-status', '识别失败', 'error');
+                showResult(false, '识别失败', '网络错误，请重试');
+            });
+        }
+
+        function passwordLogin() {
+            const userId = document.getElementById('userId').value.trim();
+            const password = document.getElementById('password').value;
+
+            if (!userId || !password) {
+                alert('请输入用户ID和密码');
+                return;
+            }
+
+            showResult(true, '登录成功', '欢迎 ' + userId + '！');
+        }
+
+        function showResult(success, title, message) {
+            const modal = document.getElementById('result-modal');
+            const icon = document.getElementById('modal-icon');
+            const titleEl = document.getElementById('modal-title');
+            const messageEl = document.getElementById('modal-message');
+
+            icon.textContent = success ? '✓' : '✗';
+            icon.style.color = success ? '#10b981' : '#ef4444';
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+
+            modal.classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('result-modal').classList.remove('show');
+        }
+
+        document.getElementById('video-canvas').onload = function() {
+            document.getElementById('video-overlay').style.display = 'none';
+        };
+
+        document.getElementById('video-canvas').onerror = function() {
+            document.getElementById('video-overlay').innerHTML =
+                '<div class="video-placeholder">摄像头连接失败</div>';
+        };
+    </script>
+</body>
+</html>

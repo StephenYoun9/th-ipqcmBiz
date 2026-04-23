@@ -9,11 +9,13 @@
         <result property="status" javaType="Integer" column="Status" jdbcType="INTEGER"/>
         <result property="userRole" javaType="Integer" column="UserRole" jdbcType="INTEGER"/>
         <result property="faceRegistered" javaType="String" column="FaceRegistered" jdbcType="VARCHAR"/>
+        <result property="faceEnabled" javaType="String" column="FaceEnabled" jdbcType="VARCHAR"/>
+        <result property="faceEnrolled" javaType="String" column="FaceEnrolled" jdbcType="VARCHAR"/>
     </resultMap>
 
 
     <select id="queryUserById" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO" parameterType="java.lang.String">
-        SELECT UserId, UserName,Password,Status,UserRole,FaceRegistered
+        SELECT UserId, UserName,Password,Status,UserRole,FaceRegistered, FaceEnabled, FaceEnrolled
         FROM USER_INFO
         WHERE UserId = #{userId}
     </select>
@@ -53,7 +55,7 @@
     </select>
     <select id="queryUserListByIdOrName" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO">
 
-        SELECT UserId, UserName,Password,Status,UserRole,FaceRegistered
+        SELECT UserId, UserName,Password,Status,UserRole,FaceRegistered, FaceEnabled, FaceEnrolled
         FROM USER_INFO
         <where>
             <if test="keyword != null &amp; keyword != ''">
@@ -63,5 +65,17 @@
         </where>
 
     </select>
+
+    <select id="selectByUserId" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO">
+        SELECT UserId, UserName, Password, Status, UserRole, FaceRegistered, FaceEnabled, FaceEnrolled
+        FROM USER_INFO
+        WHERE UserId = #{userId}
+    </select>
+
+    <update id="updateFaceEnrolled" parameterType="com.th.ipqcmbiz.entity.po.UserInfoDO">
+        UPDATE USER_INFO
+        SET FaceEnrolled = #{faceEnrolled}
+        WHERE UserId = #{userId}
+    </update>
 
 </mapper>

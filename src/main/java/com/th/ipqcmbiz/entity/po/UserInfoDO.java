@@ -35,4 +35,14 @@ public class UserInfoDO {
      * 人脸录入状态
      */
     private String faceRegistered;
+
+    /**
+     * 是否启用人脸登录
+     */
+    private String faceEnabled;
+
+    /**
+     * 是否已录入人脸
+     */
+    private String faceEnrolled;
 }

@@ -98,3 +98,14 @@ camera:
   username: admin
   password: 123456
   stream-path: /main  # HTTP 流固定用这个
+  ffmpeg-path: C:/yxm/ffmpeg-n8.1-latest-win64-gpl-8.1/ffmpeg-n8.1-latest-win64-gpl-8.1/bin/ffmpeg.exe
+
+face:
+  model:
+    detection: classpath:face_models/face_detection_yunet_2023mar.onnx
+    recognition: classpath:face_models/face_recognition_sface_2021dec.onnx
+  enrollment:
+    face-count: 8
+    quality-threshold: 0.5
+  recognition:
+    threshold: 0.4

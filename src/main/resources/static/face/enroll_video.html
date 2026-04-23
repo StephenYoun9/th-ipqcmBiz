@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>智能工具柜 - 视频人脸录入</title>
+    <link href="../css/style.css" rel="stylesheet">
+    <style>
+        .face-collect-container {
+            max-width: 600px;
+            margin: 50px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .face-collect-container h2 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        .input-box {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            align-items: center;
+        }
+        .input-box input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-width: 200px;
+            font-size: 14px;
+        }
+        .input-box input:disabled {
+            background-color: #f5f7fa;
+            color: #666;
+        }
+        .status-box {
+            padding: 12px 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        .status-box.info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .status-box.warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .status-box.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status-box.danger { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        .timer-display {
+            font-size: 72px;
+            font-weight: bold;
+            color: #e74c3c;
+            text-align: center;
+            margin: 30px 0;
+            font-family: monospace;
+        }
+        .video-box {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .video-box video {
+            max-width: 100%;
+            max-height: 400px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .hint-text {
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+            margin-top: 10px;
+        }
+        .recording-indicator {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .recording-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background-color: #e74c3c;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .recording-text {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">智能工具柜管理系统</div>
+        <div class="user-info">
+            <span id="loginUser">当前登录：管理员（admin）</span>
+            <a class="btn btn-default" href="../index.html">退出登录</a>
+        </div>
+    </div>
+
+    <div class="card face-collect-container">
+        <h2>视频人脸录入</h2>
+
+        <!-- 用户信息区 -->
+        <div class="input-box">
+            <input disabled="disabled" id="userName" placeholder="请输入姓名" type="text"/>
+            <input disabled="disabled" hidden="hidden" id="userId" type="text"/>
+            <button class="btn btn-default" onclick="backToPage()">返回</button>
+        </div>
+
+        <!-- 状态提示区 -->
+        <div class="status-box info" id="status-box">
+            状态：点击下方按钮开始录制视频
+        </div>
+
+        <!-- 初始按钮区 -->
+        <div class="btn-group" id="start-area">
+            <button class="btn btn-primary" id="record-btn" onclick="startRecording()">录制视频（5秒）</button>
+        </div>
+
+        <!-- 录制中倒计时区 -->
+        <div id="recording-area" style="display:none;">
+            <div class="recording-indicator">
+                <span class="recording-dot"></span>
+                <span class="recording-text">正在录制...</span>
+            </div>
+            <div class="timer-display" id="timer-display">5</div>
+            <div class="hint-text">请正对摄像头，保持光线充足</div>
+        </div>
+
+        <!-- 视频预览区（录制完成后显示） -->
+        <div class="video-box" id="video-area">
+            <video id="video-preview" controls></video>
+            <div class="hint-text">视频已录制完成，点击播放预览</div>
+        </div>
+
+        <!-- 视频录制完成后按钮区 -->
+        <div class="btn-group" id="complete-area" style="display:none;">
+            <button class="btn btn-secondary" onclick="reRecord()">重新录制</button>
+            <button class="btn btn-success" id="enroll-btn" onclick="completeEnroll()">完成录入</button>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = '';
+
+        let userId = null;
+        let videoBlob = null;
+        let isRecording = false;
+
+        window.onload = function() {
+            const tempEmpData = JSON.parse(sessionStorage.getItem('tempEmployeeData') || '{}');
+            if (tempEmpData.name) {
+                document.getElementById('userName').value = tempEmpData.name;
+                document.getElementById('loginUser').textContent =
+                    `当前录入：${tempEmpData.name}（工号：${tempEmpData.no || '未填写'}）`;
+            }
+            if (tempEmpData.no) {
+                document.getElementById('userId').value = tempEmpData.no;
+                userId = tempEmpData.no;
+            }
+        };
+
+        function updateStatus(message, type) {
+            const el = document.getElementById('status-box');
+            el.textContent = '状态：' + message;
+            el.className = 'status-box ' + (type || 'info');
+        }
+
+        function startRecording() {
+            if (!userId) {
+                alert('用户信息缺失，请从员工管理页面进入');
+                return;
+            }
+
+            if (isRecording) return;
+            isRecording = true;
+
+            // 切换UI状态
+            document.getElementById('start-area').style.display = 'none';
+            document.getElementById('recording-area').style.display = 'block';
+            document.getElementById('video-area').style.display = 'none';
+            document.getElementById('complete-area').style.display = 'none';
+
+            updateStatus('正在录制5秒视频...', 'warning');
+
+            // 开始录制
+            recordVideo();
+        }
+
+        function recordVideo() {
+            const recordBtn = document.getElementById('record-btn');
+            recordBtn.disabled = true;
+            recordBtn.textContent = '录制中...';
+
+            let countdown = 5;
+            const timerDisplay = document.getElementById('timer-display');
+            timerDisplay.textContent = countdown;
+
+            // 倒计时
+            const countdownInterval = setInterval(() => {
+                countdown--;
+                timerDisplay.textContent = countdown;
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval);
+                }
+            }, 1000);
+
+            // 使用 fetch 调用后端录制接口
+            fetch(BASE_URL + '/face/enroll/video/record', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: userId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                clearInterval(countdownInterval);
+                isRecording = false;
+
+                if (data.code === 200) {
+                    // 录制成功（后端已经处理完人脸录入）
+                    updateStatus(data.message, 'success');
+                    document.getElementById('recording-area').style.display = 'none';
+                    document.getElementById('start-area').style.display = 'block';
+
+                    setTimeout(() => {
+                        faceCollectSuccess();
+                    }, 1500);
+                } else {
+                    // 录制失败
+                    updateStatus(data.message || '录制失败', 'danger');
+                    document.getElementById('recording-area').style.display = 'none';
+                    document.getElementById('start-area').style.display = 'block';
+                }
+            })
+            .catch(err => {
+                clearInterval(countdownInterval);
+                isRecording = false;
+                console.error('录制失败:', err);
+                updateStatus('网络错误，请重试', 'danger');
+                document.getElementById('recording-area').style.display = 'none';
+                document.getElementById('start-area').style.display = 'block';
+            });
+        }
+
+        function reRecord() {
+            videoBlob = null;
+            document.getElementById('video-area').style.display = 'none';
+            document.getElementById('complete-area').style.display = 'none';
+            document.getElementById('start-area').style.display = 'block';
+            updateStatus('点击下方按钮重新录制视频', 'info');
+        }
+
+        function completeEnroll() {
+            const enrollBtn = document.getElementById('enroll-btn');
+            enrollBtn.disabled = true;
+            enrollBtn.textContent = '处理中...';
+
+            // 后端已经在 recordVideo 中完成了录入，这里只是UI跳转
+            faceCollectSuccess();
+        }
+
+        function faceCollectSuccess() {
+            const tempEmpData = JSON.parse(sessionStorage.getItem('tempEmployeeData') || '{}');
+            if (tempEmpData.fromAddPage) {
+                window.location.href = `../admin/add_employee.html`;
+            } else {
+                window.location.href = `../admin/admin_employee.html`;
+                sessionStorage.setItem('recentFaceRegisterEmpNo', tempEmpData.no);
+            }
+        }
+
+        function backToPage() {
+            const tempEmpData = JSON.parse(sessionStorage.getItem('tempEmployeeData') || '{}');
+            if (tempEmpData.fromAddPage) {
+                window.location.href = `../admin/add_employee.html`;
+            } else {
+                window.location.href = '../admin/admin_employee.html';
+            }
+        }
+    </script>
+</body>
+</html>

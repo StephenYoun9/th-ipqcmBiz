@@ -1,91 +1,91 @@
 package com.th.ipqcmbiz.config;
 
-import org.bytedeco.ffmpeg.global.avcodec;
-import org.bytedeco.javacv.FFmpegFrameGrabber;
-import org.bytedeco.javacv.FFmpegLogCallback;
-import org.bytedeco.javacv.Frame;
+import com.th.ipqcmbiz.service.face.FaceVideoService;
+import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 import org.springframework.web.socket.BinaryMessage;
+import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
-import java.nio.ByteBuffer;
+import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
-import static org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P;
-
-/**
- * @ClassName VideoStreamHandler
- * @Description 视频流处理核心类
- * @Author 杨兴明
- * @Date 2025/4/28 13:16
- * @Version 1.0
- */
+@Component
+@Slf4j
 public class VideoStreamHandler extends TextWebSocketHandler {
+
     private static final Set<WebSocketSession> sessions = ConcurrentHashMap.newKeySet();
-    private FFmpegFrameGrabber grabber;
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+    @Resource
+    private FaceVideoService faceVideoService;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         sessions.add(session);
-        // 启动拉流线程（示例：从RTSP摄像头拉流）
-        new Thread(() -> startStreaming(session, "C:\\Users\\23685\\Desktop\\yxm-Doc\\2.mp4")).start();
+        log.info("WebSocket客户端连接: {}, 当前连接数: {}", session.getId(), sessions.size());
+
+        if (sessions.size() == 1) {
+            faceVideoService.reinitCamera();
+        }
+
+        startStreaming();
     }
 
-    private void startStreaming(WebSocketSession session, String rtspUrl) {
-        try {
-            FFmpegLogCallback.set();  // 启用日志
-            grabber = new FFmpegFrameGrabber(rtspUrl);
-            grabber.setOption("rtsp_transport", "tcp");
-            grabber.setOption("stimeout", "5000000");
-            grabber.setVideoCodec(avcodec.AV_CODEC_ID_H264);  // 强制 H.264 解码
-            grabber.setVideoOption("bufsize", "20M");
-            grabber.setVideoStream(0);  // 强制绑定 Stream #0:0（视频流）
-            grabber.setVideoCodecName("h264");
-            grabber.setVideoOption("profile:v", "high");  // 显式声明 Profile
-            grabber.setVideoOption("coder:v", "0");       // 关闭熵编码器冲突
-            grabber.setPixelFormat(AV_PIX_FMT_YUV420P);   // 匹配视频的像素格式
-            grabber.setVideoOption("hwaccel", "none");  // 禁用硬件加速
-            grabber.setVideoOption("threads", "1");
-            grabber.start();
-            //设置帧率参数，避免发送过快导致前端卡顿：
-            grabber.setFrameRate(25);
-            Frame frame;
-            int retry = 0;
-            while ((frame = grabber.grab()) != null && retry < 5) {
-                if (frame.image != null && frame.keyFrame) {
-                    System.out.println("成功获取视频帧");
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, org.springframework.web.socket.CloseStatus status) throws Exception {
+        sessions.remove(session);
+        log.info("WebSocket客户端断开: {}, 当前连接数: {}", session.getId(), sessions.size());
+
+        if (sessions.isEmpty()) {
+            log.info("无客户端连接，摄像头保持运行");
+        }
+    }
+
+    @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+        String payload = message.getPayload();
+        log.debug("收到消息: {}", payload);
+    }
+
+    private void startStreaming() {
+        scheduler.submit(() -> {
+            while (!sessions.isEmpty()) {
+                try {
+                    byte[] jpeg = faceVideoService.getLatestJpeg();
+                    if (jpeg == null || jpeg.length == 0) {
+                        Thread.sleep(10);
+                        continue;
+                    }
+
+                    BinaryMessage msg = new BinaryMessage(jpeg);
+                    for (WebSocketSession session : sessions) {
+                        if (session.isOpen()) {
+                            try {
+                                session.sendMessage(msg);
+                            } catch (IOException e) {
+                                log.debug("发送帧失败: {}", e.getMessage());
+                            }
+                        }
+                    }
+                    Thread.sleep(40);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     break;
+                } catch (Exception e) {
+                    log.debug("推送视频流异常: {}", e.getMessage());
                 }
-                retry++;
             }
-            if (frame == null || frame.image == null) {
-                System.err.println("无有效帧：检查视频流或解码器兼容性");
-            }
-            if (frame != null) {
-                // 转换为H.264 NAL单元
-                ByteBuffer buffer = (ByteBuffer) frame.image[0].position(0);
-                byte[] data = new byte[buffer.remaining()];
-                buffer.get(data);
-
-                // 发送二进制数据
-                session.sendMessage(new BinaryMessage(data));
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            closeGrabber();
-        }
+        });
     }
 
-    private void closeGrabber() {
-        try {
-            if (grabber != null) {
-                grabber.stop();
-                grabber.release();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public static int getClientCount() {
+        return sessions.size();
     }
 }

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>摄像头实时监控</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #fff;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 1280px;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        #video-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-secondary {
+            background: #374151;
+            color: white;
+        }
+        .btn-secondary:hover { background: #4b5563; }
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        .btn-success:hover { background: #059669; }
+        .status-bar {
+            display: flex;
+            gap: 24px;
+            padding: 16px;
+            background: #2d2d2d;
+            border-radius: 8px;
+            flex-wrap: wrap;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-label {
+            color: #9ca3af;
+            font-size: 13px;
+        }
+        .status-value {
+            font-weight: 600;
+        }
+        .status-value.success { color: #10b981; }
+        .status-value.error { color: #ef4444; }
+        .status-value.warning { color: #f59e0b; }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 16px;
+            color: #9ca3af;
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>摄像头实时监控</h1>
+
+        <div class="video-container">
+            <img id="video-canvas" alt="摄像头画面" style="width:100%;height:100%;object-fit:contain;">
+            <div id="loading" class="loading">正在连接摄像头...</div>
+        </div>
+
+        <div class="controls">
+            <button class="btn-primary" onclick="connectDirect()">FFmpeg直接流(推荐)</button>
+            <button class="btn-secondary" onclick="connectMjpeg()">MJPEG 流播放</button>
+            <button class="btn-secondary" onclick="connectPolling()">轮询 播放</button>
+            <button class="btn-danger" onclick="disconnect()">断开连接</button>
+            <button class="btn-success" onclick="reinitCamera()">重启摄像头</button>
+            <button class="btn-secondary" onclick="checkStatus()">检查状态</button>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-label">连接状态:</span>
+                <span id="connection-status" class="status-value warning">未连接</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">播放模式:</span>
+                <span id="play-mode" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">帧率:</span>
+                <span id="fps" class="status-value">0 fps</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">分辨率:</span>
+                <span id="resolution" class="status-value">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">摄像头:</span>
+                <span id="camera-status" class="status-value warning">未知</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = window.location.origin;
+        let ws = null;
+        let pollTimer = null;
+        let playMode = null;
+        let frameCount = 0;
+        let lastTime = Date.now();
+        let connected = false;
+
+        const videoCanvas = document.getElementById('video-canvas');
+
+        function updateStatus(elementId, text, className) {
+            document.getElementById(elementId).textContent = text;
+            document.getElementById(elementId).className = 'status-value ' + className;
+        }
+
+        function updateFps() {
+            const now = Date.now();
+            const delta = now - lastTime;
+            if (delta >= 1000) {
+                document.getElementById('fps').textContent = frameCount + ' fps';
+                frameCount = 0;
+                lastTime = now;
+            }
+            frameCount++;
+        }
+
+        function renderFrame(jpegData) {
+            const blob = new Blob([jpegData], { type: 'image/jpeg' });
+            const url = URL.createObjectURL(blob);
+            const img = new Image();
+            img.onload = function() {
+                videoCanvas.src = url;
+                updateFps();
+                document.getElementById('loading').classList.add('hidden');
+            };
+            img.src = url;
+        }
+
+        function connectWebSocket() {
+            disconnect();
+            updateStatus('connection-status', '连接中...', 'warning');
+
+            const wsUrl = 'ws://' + window.location.host + '/ws/video-stream';
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                connected = true;
+                playMode = 'WebSocket';
+                updateStatus('connection-status', '已连接', 'success');
+                updateStatus('play-mode', 'WebSocket', 'success');
+                console.log('WebSocket连接成功');
+            };
+
+            ws.onmessage = function(event) {
+                if (event.data instanceof Blob) {
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        renderFrame(reader.result);
+                    };
+                    reader.readAsArrayBuffer(event.data);
+                }
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket错误:', error);
+                updateStatus('connection-status', '连接错误', 'error');
+            };
+
+            ws.onclose = function() {
+                if (connected) {
+                    connected = false;
+                    updateStatus('connection-status', '已断开', 'error');
+                    console.log('WebSocket连接关闭');
+                }
+            };
+        }
+
+        let mjpegImg = null;
+        let mjpegFpsTimer = null;
+        let lastImgSrc = '';
+
+        function connectMjpeg() {
+            disconnect();
+            updateStatus('connection-status', 'MJPEG流播放中...', 'warning');
+            playMode = 'MJPEG';
+            updateStatus('play-mode', 'MJPEG流', 'success');
+
+            mjpegImg = document.getElementById('video-canvas');
+            mjpegImg.onload = function() {
+                updateStatus('connection-status', '播放中', 'success');
+                document.getElementById('loading').classList.add('hidden');
+            };
+            mjpegImg.onerror = function() {
+                updateStatus('connection-status', '播放失败', 'error');
+            };
+            mjpegImg.src = BASE_URL + '/face-video/stream';
+
+            mjpegFpsTimer = setInterval(() => {
+                if (mjpegImg && mjpegImg.src && mjpegImg.src !== lastImgSrc) {
+                    lastImgSrc = mjpegImg.src;
+                    updateFps();
+                }
+            }, 100);
+        }
+
+        function connectDirect() {
+            disconnect();
+            updateStatus('connection-status', 'FFmpeg直接流播放中...', 'warning');
+            playMode = 'Direct';
+            updateStatus('play-mode', 'FFmpeg直接流', 'success');
+
+            const img = document.getElementById('video-canvas');
+            img.onload = function() {
+                updateStatus('connection-status', '播放中', 'success');
+                document.getElementById('loading').classList.add('hidden');
+            };
+            img.onerror = function() {
+                updateStatus('connection-status', '播放失败', 'error');
+            };
+            img.src = BASE_URL + '/face-video/mjpeg';
+        }
+
+        function connectPolling() {
+            disconnect();
+            updateStatus('connection-status', '轮询中...', 'warning');
+            playMode = 'Polling';
+            updateStatus('play-mode', '轮询', 'success');
+
+            function poll() {
+                fetch(BASE_URL + '/face-video/frame?t=' + Date.now())
+                    .then(res => res.arrayBuffer())
+                    .then(buffer => {
+                        if (buffer.byteLength > 0) {
+                            renderFrame(buffer);
+                        }
+                    })
+                    .catch(err => console.error('轮询错误:', err));
+            }
+
+            pollTimer = setInterval(poll, 200);
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+            }
+            if (mjpegFpsTimer) {
+                clearInterval(mjpegFpsTimer);
+                mjpegFpsTimer = null;
+            }
+            if (mjpegImg) {
+                mjpegImg.src = '';
+                mjpegImg = null;
+            }
+            lastImgSrc = '';
+            connected = false;
+            playMode = null;
+            frameCount = 0;
+            lastTime = Date.now();
+            updateStatus('connection-status', '已断开', 'warning');
+            updateStatus('play-mode', '-', '');
+            document.getElementById('fps').textContent = '0 fps';
+            document.getElementById('loading').classList.remove('hidden');
+        }
+
+        function reinitCamera() {
+            fetch(BASE_URL + '/face-video/reinit')
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.msg || data.message);
+                    if (data.code === 200) {
+                        checkStatus();
+                    }
+                })
+                .catch(err => alert('重启失败: ' + err));
+        }
+
+        function checkStatus() {
+            fetch(BASE_URL + '/face-video/status')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        const info = data.data;
+                        document.getElementById('resolution').textContent = info.resolution || '-';
+                        const running = data.extra?.running;
+                        if (running) {
+                            updateStatus('camera-status', '运行中', 'success');
+                        } else {
+                            updateStatus('camera-status', '已停止', 'error');
+                        }
+                    }
+                })
+                .catch(err => console.error('检查状态失败:', err));
+        }
+
+        window.onload = function() {
+            checkStatus();
+        };
+
+        window.onbeforeunload = function() {
+            disconnect();
+        };
+    </script>
+</body>
+</html>

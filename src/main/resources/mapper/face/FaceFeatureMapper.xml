@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.th.ipqcmbiz.mapper.face.FaceFeatureMapper">
+
+    <resultMap id="BaseResultMap" type="com.th.ipqcmbiz.entity.po.FaceFeatureDO">
+        <id column="ID" property="id"/>
+        <result column="USER_ID" property="userId"/>
+        <result column="FACE_INDEX" property="faceIndex"/>
+        <result column="FEATURE_VECTOR" property="featureVector"/>
+        <result column="FACE_IMAGE" property="faceImage"/>
+        <result column="QUALITY_SCORE" property="qualityScore"/>
+        <result column="THRESHOLD" property="threshold"/>
+        <result column="CREATE_TIME" property="createTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.th.ipqcmbiz.entity.po.FaceFeatureDO">
+        INSERT INTO FACE_FEATURE (ID, USER_ID, FACE_INDEX, FEATURE_VECTOR, FACE_IMAGE, QUALITY_SCORE, THRESHOLD, CREATE_TIME)
+        VALUES (#{id}, #{userId}, #{faceIndex}, #{featureVector}, #{faceImage}, #{qualityScore}, #{threshold}, #{createTime})
+    </insert>
+
+    <delete id="deleteByUserId" parameterType="string">
+        DELETE FROM FACE_FEATURE WHERE USER_ID = #{userId}
+    </delete>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        SELECT * FROM FACE_FEATURE WHERE USER_ID = #{userId} ORDER BY FACE_INDEX
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT * FROM FACE_FEATURE ORDER BY USER_ID, FACE_INDEX
+    </select>
+
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*) FROM FACE_FEATURE WHERE USER_ID = #{userId}
+    </select>
+
+</mapper>
