@@ -1,497 +1,72 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-    <head>
-        <meta charset="UTF-8">
-        <title>智能工具柜 - 人脸采集</title>
-        <link href="../css/style.css" rel="stylesheet">
-        <style>
-            .face-collect-container {
-                max-width: 800px;
-                margin: 50px auto;
-                background: white;
-                padding: 30px;
-                border-radius: 8px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            }
-            .face-collect-container h2 {
-                margin-bottom: 20px;
-                color: #2c3e50;
-            }
-            .input-box {
-                display: flex;
-                gap: 10px;
-                margin: 20px 0;
-                align-items: center;
-            }
-            .input-box input {
-                flex: 1;
-                padding: 10px 12px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                min-width: 200px;
-                font-size: 14px;
-            }
-            .input-box input:disabled {
-                background-color: #f5f7fa;
-                color: #666;
-            }
-            .status-box {
-                padding: 12px 15px;
-                border-radius: 4px;
-                margin: 15px 0;
-                font-size: 14px;
-            }
-            .status-box.info {
-                background-color: #d1ecf1;
-                color: #0c5460;
-                border: 1px solid #bee5eb;
-            }
-            .status-box.warning {
-                background-color: #fff3cd;
-                color: #856404;
-                border: 1px solid #ffeeba;
-            }
-            .status-box.success {
-                background-color: #d4edda;
-                color: #155724;
-                border: 1px solid #c3e6cb;
-            }
-            .status-box.danger {
-                background-color: #f8d7da;
-                color: #721c24;
-                border: 1px solid #f5c6cb;
-            }
-            .video-box {
-                background-color: white;
-                border-radius: 8px;
-                padding: 15px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                margin: 20px 0;
-                text-align: center;
-            }
-            .video-box img {
-                border-radius: 4px;
-                border: 1px solid #eee;
-                max-width: 100%;
-            }
-            .progress-bar {
-                height: 20px;
-                background-color: #e9ecef;
-                border-radius: 4px;
-                overflow: hidden;
-                margin: 15px 0;
-            }
-            .progress-fill {
-                height: 100%;
-                background-color: #3498db;
-                transition: width 0.3s ease;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-size: 12px;
-            }
-            .progress-text {
-                text-align: center;
-                color: #666;
-                font-size: 14px;
-                margin-top: 5px;
-            }
-            .btn-group {
-                display: flex;
-                gap: 10px;
-                margin-top: 20px;
-            }
-            .face-preview {
-                display: flex;
-                gap: 8px;
-                flex-wrap: wrap;
-                justify-content: center;
-                margin-top: 15px;
-            }
-            .face-thumb {
-                width: 50px;
-                height: 50px;
-                border-radius: 4px;
-                background: #f0f0f0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                font-size: 20px;
-                color: #ccc;
-                border: 2px dashed #ccc;
-            }
-            .face-thumb.captured {
-                background: #d4edda;
-                border: 2px solid #2ecc71;
-                color: #2ecc71;
-            }
-            .fps-counter {
-                position: absolute;
-                top: 10px;
-                right: 10px;
-                background: rgba(0,0,0,0.6);
-                color: #0f0;
-                padding: 5px 10px;
-                border-radius: 4px;
-                font-size: 12px;
-                font-family: monospace;
-            }
-            .video-wrapper {
-                position: relative;
-                display: inline-block;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <div class="logo">智能工具柜管理系统</div>
-            <div class="user-info">
-                <span id="loginUser">当前登录：管理员（admin）</span>
-                <a class="btn btn-default" href="../index.html">退出登录</a>
+<head>
+    <meta charset="UTF-8">
+    <title>智能工具柜 - 人脸采集</title>
+    <link href="../css/common.css" rel="stylesheet">
+    <link href="css/register_face.css" rel="stylesheet">
+</head>
+<body>
+<div class="header">
+    <div class="logo">智能工具柜管理系统</div>
+    <div class="user-info">
+        <span id="loginUser">当前登录：管理员（admin）</span>
+        <a class="btn btn-danger" href="javascript:void(0)" onclick="logout()">退出登录</a>
+    </div>
+</div>
+
+<div class="card face-collect-container">
+    <h2>多方向人脸采集</h2>
+
+    <div class="input-box">
+        <input disabled="disabled" id="userName" placeholder="请输入姓名" type="text"/>
+        <input disabled="disabled" hidden="hidden" id="userId" type="text"/>
+        <button class="btn btn-primary" id="start-btn" onclick="startCollect()">开始采集</button>
+        <button class="btn btn-danger" id="complete-btn" onclick="completeCollect()" disabled>完成采集</button>
+        <button class="btn btn-default" onclick="backToPage()">返回</button>
+    </div>
+
+    <div class="status-box info" id="status-box">状态：等待开始</div>
+
+    <div class="video-box">
+        <div class="video-wrapper" style="position: relative;">
+            <canvas id="mainCanvas" width="640" height="480" style="background:#eee; border-radius: 4px;"></canvas>
+            <div id="maskLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; border-radius: 4px;"></div>
+            <div id="qualityBar" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); width: 200px; height: 20px; background: rgba(0,0,0,0.6); border-radius: 10px; overflow: hidden; opacity: 0; transition: opacity 0.3s;">
+                <div id="qualityFill" style="height: 100%; background: linear-gradient(90deg, #f44336, #ff9800, #4caf50); width: 0%; transition: width 0.3s;"></div>
+                <span id="qualityText" style="position: absolute; width: 100%; text-align: center; color: white; font-size: 12px; line-height: 20px;">0%</span>
             </div>
         </div>
+        <canvas id="captureCanvas" style="display:none;"></canvas>
+    </div>
 
-        <div class="card face-collect-container">
-            <h2>多方向人脸采集</h2>
+    <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill" style="width: 0%;">0%</div>
+    </div>
+    <div class="progress-text" id="progress-text">已采集 0/8 张</div>
 
-            <div class="input-box">
-                <input disabled="disabled" id="userName" placeholder="请输入姓名" type="text"/>
-                <input disabled="disabled" hidden="hidden" id="userId" type="text"/>
-                <button class="btn btn-primary" id="start-btn" onclick="startCollect()">开始采集</button>
-                <button class="btn btn-danger" id="complete-btn" onclick="completeCollect()" disabled>完成采集</button>
-                <button class="btn btn-default" onclick="backToPage()">返回</button>
-            </div>
+    <div class="face-preview" id="face-preview">
+        <div class="face-thumb" id="thumb-1">?</div>
+        <div class="face-thumb" id="thumb-2">?</div>
+        <div class="face-thumb" id="thumb-3">?</div>
+        <div class="face-thumb" id="thumb-4">?</div>
+        <div class="face-thumb" id="thumb-5">?</div>
+        <div class="face-thumb" id="thumb-6">?</div>
+        <div class="face-thumb" id="thumb-7">?</div>
+        <div class="face-thumb" id="thumb-8">?</div>
+    </div>
 
-            <div class="status-box info" id="status-box">
-                状态：等待开始
-            </div>
-
-            <div class="video-box">
-                <div class="video-wrapper">
-                    <img id="videoFrame" alt="摄像头画面" style="background:#eee; max-height: 400px;"/>
-                    <div class="fps-counter" id="fps-counter">FPS: 0</div>
-                </div>
-                <canvas id="canvas" style="display:none;"></canvas>
-            </div>
-
-            <div class="progress-bar">
-                <div class="progress-fill" id="progress-fill" style="width: 0%;">0%</div>
-            </div>
-            <div class="progress-text" id="progress-text">已采集 0/8 张</div>
-
-            <div class="face-preview" id="face-preview">
-                <div class="face-thumb" id="thumb-1">?</div>
-                <div class="face-thumb" id="thumb-2">?</div>
-                <div class="face-thumb" id="thumb-3">?</div>
-                <div class="face-thumb" id="thumb-4">?</div>
-                <div class="face-thumb" id="thumb-5">?</div>
-                <div class="face-thumb" id="thumb-6">?</div>
-                <div class="face-thumb" id="thumb-7">?</div>
-                <div class="face-thumb" id="thumb-8">?</div>
-            </div>
-
-            <div class="btn-group">
-                <button class="btn btn-primary" id="capture-btn" onclick="captureFace()" disabled>拍照采集</button>
-            </div>
-        </div>
-
-        <script>
-            const BASE_URL = '';
-            let enrollId = null;
-            let capturedCount = 0;
-            let isCollecting = false;
-
-            const videoFrame = document.getElementById('videoFrame');
-            const canvas = document.getElementById('canvas');
-            const ctx = canvas.getContext('2d');
-            const fpsCounter = document.getElementById('fps-counter');
-
-            let frameCount = 0;
-            let lastFpsTime = performance.now();
-            let currentBlobUrl = null;
-            let fetchController = null;
-            let isFetching = false;
-            let lastBlobUrl = null;
-
-            window.onload = function() {
-                const tempEmpData = JSON.parse(sessionStorage.getItem('tempEmployeeData') || '{}');
-                if (tempEmpData.name) {
-                    document.getElementById('userName').value = tempEmpData.name;
-                    document.getElementById('loginUser').textContent = `当前采集：${tempEmpData.name}（工号：${tempEmpData.no || '未填写'}）`;
-                }
-                if (tempEmpData.no) {
-                    document.getElementById('userId').value = tempEmpData.no;
-                }
-                startFetching();
-            };
-
-            function updateStatus(message, type) {
-                const el = document.getElementById('status-box');
-                el.textContent = '状态：' + message;
-                el.className = 'status-box ' + (type || 'info');
-            }
-
-            function updateProgress() {
-                const percent = Math.round((capturedCount / 8) * 100);
-                document.getElementById('progress-fill').style.width = percent + '%';
-                document.getElementById('progress-fill').textContent = percent + '%';
-                document.getElementById('progress-text').textContent = `已采集 ${capturedCount}/8 张`;
-
-                for (let i = 1; i <= 8; i++) {
-                    const thumb = document.getElementById('thumb-' + i);
-                    if (i <= capturedCount) {
-                        thumb.classList.add('captured');
-                        thumb.textContent = '✓';
-                    } else {
-                        thumb.classList.remove('captured');
-                        thumb.textContent = '?';
-                    }
-                }
-            }
-
-            function updateFps() {
-                frameCount++;
-                const now = performance.now();
-                const elapsed = now - lastFpsTime;
-                if (elapsed >= 1000) {
-                    const fps = Math.round(frameCount * 1000 / elapsed);
-                    fpsCounter.textContent = 'FPS: ' + fps;
-                    frameCount = 0;
-                    lastFpsTime = now;
-                }
-            }
-
-            async function fetchFrame() {
-                if (fetchController) {
-                    fetchController.abort();
-                }
-                fetchController = new AbortController();
-
-                try {
-                    const response = await fetch(BASE_URL + '/face-video/frame', {
-                        signal: fetchController.signal
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Fetch failed');
-                    }
-
-                    const blob = await response.blob();
-                    updateFps();
-
-                    if (lastBlobUrl) {
-                        URL.revokeObjectURL(lastBlobUrl);
-                    }
-                    lastBlobUrl = URL.createObjectURL(blob);
-                    videoFrame.src = lastBlobUrl;
-
-                } catch (e) {
-                    if (e.name !== 'AbortError') {
-                        console.error('Fetch frame error:', e);
-                    }
-                }
-            }
-
-            async function startFetching() {
-                if (isFetching) return;
-                isFetching = true;
-
-                async function loop() {
-                    while (isFetching) {
-                        await fetchFrame();
-                        await new Promise(r => setTimeout(r, 100));
-                    }
-                }
-                loop();
-            }
-
-            function stopFetching() {
-                isFetching = false;
-                if (fetchController) {
-                    fetchController.abort();
-                    fetchController = null;
-                }
-            }
-
-            function captureCurrentFrame() {
-                return new Promise((resolve, reject) => {
-                    canvas.width = videoFrame.naturalWidth || 640;
-                    canvas.height = videoFrame.naturalHeight || 480;
-                    ctx.drawImage(videoFrame, 0, 0);
-                    try {
-                        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                        resolve(dataUrl);
-                    } catch (e) {
-                        reject(e);
-                    }
-                });
-            }
-
-            function startCollect() {
-                const userId = document.getElementById('userId').value.trim();
-                const userName = document.getElementById('userName').value.trim();
-
-                if (!userId) {
-                    alert('请输入用户编号');
-                    return;
-                }
-
-                updateStatus('正在开始采集...', 'warning');
-
-                fetch(BASE_URL + '/face/enroll/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: userId, faceCount: 8 })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.code === 200) {
-                        enrollId = data.data.enrollId;
-                        capturedCount = 0;
-                        isCollecting = true;
-                        updateProgress();
-                        updateStatus('请对准摄像头，点击"拍照采集"', 'warning');
-                        document.getElementById('start-btn').disabled = true;
-                        document.getElementById('capture-btn').disabled = false;
-                        document.getElementById('complete-btn').disabled = true;
-                    } else {
-                        updateStatus(data.message || '启动失败', 'danger');
-                    }
-                })
-                .catch(err => {
-                    updateStatus('网络错误', 'danger');
-                });
-            }
-
-            function captureFace() {
-                if (!enrollId || !isCollecting) return;
-
-                const userId = document.getElementById('userId').value.trim();
-                const captureBtn = document.getElementById('capture-btn');
-                captureBtn.disabled = true;
-                captureBtn.textContent = '处理中...';
-                updateStatus('正在采集人脸...', 'warning');
-
-                captureCurrentFrame()
-                    .then(imageData => {
-                        return fetch(BASE_URL + '/face/enroll/capture/image', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ enrollId: enrollId, userId: userId, image: imageData })
-                        });
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        captureBtn.disabled = false;
-                        captureBtn.textContent = '拍照采集';
-
-                        if (data.code === 200) {
-                            const vo = data.data;
-                            capturedCount = vo.captured;
-                            updateProgress();
-
-                            if (vo.quality) {
-                                updateStatus(`已采集 ${capturedCount}/8 张 (质量: ${(vo.quality * 100).toFixed(0)}%)`, 'warning');
-                            } else {
-                                updateStatus(vo.message || `已采集 ${capturedCount}/8 张`, 'warning');
-                            }
-
-                            if (capturedCount >= 8) {
-                                document.getElementById('complete-btn').disabled = false;
-                                captureBtn.disabled = true;
-                            }
-                        } else {
-                            updateStatus(data.data?.message || '采集失败', 'danger');
-                        }
-                    })
-                    .catch(err => {
-                        captureBtn.disabled = false;
-                        captureBtn.textContent = '拍照采集';
-                        updateStatus('采集失败', 'danger');
-                    });
-            }
-
-            function completeCollect() {
-                if (!enrollId) {
-                    alert('请先点击"开始采集"启动录入流程');
-                    return;
-                }
-
-                if (capturedCount < 8) {
-                    alert(`还需要采集 ${8 - capturedCount} 张人脸才能完成`);
-                    return;
-                }
-
-                const completeBtn = document.getElementById('complete-btn');
-                completeBtn.disabled = true;
-                completeBtn.textContent = '处理中...';
-                updateStatus('正在完成采集...', 'info');
-
-                fetch(BASE_URL + '/face/enroll/complete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ enrollId: enrollId })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    completeBtn.disabled = false;
-                    completeBtn.textContent = '完成采集';
-
-                    if (data.code === 200) {
-                        updateStatus('人脸采集完成！', 'success');
-                        isCollecting = false;
-                        captureBtn.disabled = true;
-                        completeBtn.disabled = true;
-                        document.getElementById('start-btn').disabled = false;
-
-                        sessionStorage.setItem('faceRegisterStatus', 'success');
-
-                        setTimeout(() => {
-                            faceCollectSuccess();
-                        }, 1500);
-                    } else {
-                        updateStatus(data.message || '完成失败', 'danger');
-                        completeBtn.disabled = false;
-                    }
-                })
-                .catch(err => {
-                    completeBtn.disabled = false;
-                    completeBtn.textContent = '完成采集';
-                    updateStatus('网络错误', 'danger');
-                });
-            }
-
-            function faceCollectSuccess() {
-                const tempEmpData = JSON.parse(sessionStorage.getItem('tempEmployeeData') || '{}');
-                if (tempEmpData.fromAddPage) {
-                    window.location.href = `../admin/add_employee.html`;
-                } else {
-                    window.location.href = `../admin/admin_employee.html`;
-                    sessionStorage.setItem('recentFaceRegisterEmpNo', tempEmpData.no);
-                }
-            }
-
-            function backToPage() {
-                stopFetching();
-                if (lastBlobUrl) {
-                    URL.revokeObjectURL(lastBlobUrl);
-                }
-
-                const tempEmpData = JSON.parse(sessionStorage.getItem('tempEmployeeData') || '{}');
-                if (tempEmpData.fromAddPage) {
-                    window.location.href = `../admin/add_employee.html`;
-                } else {
-                    window.location.href = '../admin/admin_employee.html';
-                }
-            }
-
-            window.onbeforeunload = function() {
-                stopFetching();
-                if (lastBlobUrl) {
-                    URL.revokeObjectURL(lastBlobUrl);
-                }
-            };
-        </script>
-    </body>
+    <div class="btn-group">
+        <button class="btn btn-primary" id="capture-btn" onclick="captureFace()" disabled>拍照采集</button>
+    </div>
+</div>
+<script src="../js/constants.js"></script>
+<script src="../js/auth.js"></script>
+<script src="js/register_face.js"></script>
+<script>
+if (!initPageAuth(SESSION_TIMEOUT)) {
+    // Already redirected to login
+}
+</script>
+</body>
 </html>

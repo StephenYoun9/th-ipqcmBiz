@@ -6,42 +6,71 @@ import com.th.ipqcmbiz.service.face.FaceVideoService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
-import org.opencv.core.Mat;
-import org.opencv.core.MatOfByte;
-import org.opencv.core.MatOfInt;
-import org.opencv.core.Size;
+import org.opencv.core.*;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
+import org.opencv.objdetect.CascadeClassifier;
 import org.opencv.videoio.VideoCapture;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
+import com.th.ipqcmbiz.entity.vo.FaceFrameInfo;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * 本地摄像头视频服务实现
+ * 使用OpenCV VideoCapture从本机摄像头（设备索引1）获取视频流
+ */
 @Service
 @Slf4j
 public class FaceVideoServiceImpl implements FaceVideoService {
 
-    @Value("${camera.ip}")
-    private String cameraIp;
-    @Value("${camera.port:554}")
-    private int cameraPort;
-    @Value("${camera.username}")
-    private String cameraUsername;
-    @Value("${camera.password}")
-    private String cameraPassword;
-    @Value("${camera.stream-path}")
-    private String streamPath;
-
+    /** OpenCV VideoCapture对象，用于从摄像头读取帧 */
     private VideoCapture capture;
+
+    /** 最新的一帧JPEG数据（已标注人脸框），其他线程可快速获取 */
     private final AtomicReference<byte[]> latestFrame = new AtomicReference<>();
+
+    /** 拉流线程是否运行中 */
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
+
+    /** 摄像头配置信息（分辨率、帧率等） */
     private final AtomicReference<CameraInfo> cameraInfo = new AtomicReference<>(new CameraInfo(0, 0, 0, "", false));
+
+    /** 后台拉流线程，持续从摄像头读取帧并缓存 */
     private Thread grabThread;
+
+    /** 是否已初始化（懒加载模式，首次使用时初始化） */
     private volatile boolean initialized = false;
+
+    /** 初始化锁，防止并发重复初始化 */
+    private final Object initLock = new Object();
+
+    /** Haar级联人脸检测器 */
+    private CascadeClassifier detector;
+
+    /** 目标输出分辨率宽度 */
+    private static final int TARGET_WIDTH = 640;
+
+    /** 目标输出分辨率高度 */
+    private static final int TARGET_HEIGHT = 480;
+
+    /** JPEG压缩质量 0-100，越高质量越好但越大 */
+    private static final int JPEG_QUALITY = 70;
+
+    /** 人脸检测跳帧间隔（每N帧检测1次，降低CPU开销） */
+    private static final int DETECT_INTERVAL = 3;
+
+    /** 帧计数器 */
+    private int frameCount = 0;
+
+    /** 上一帧是否已检测过人脸（检测结果缓存） */
+    private boolean lastFrameHasFace = false;
+
+    /** 最新检测到的人脸坐标 */
+    private final AtomicReference<Rect> latestFaceRect = new AtomicReference<>();
 
     static {
         try {
@@ -52,57 +81,73 @@ public class FaceVideoServiceImpl implements FaceVideoService {
         }
     }
 
+    /**
+     * 初始化Haar级联人脸检测器
+     */
     @PostConstruct
-    public void init() {
-        log.info("视频流组件初始化 (OpenCV VideoCapture)");
+    public void initDetector() {
         try {
-            initCapture();
-            startGrabThread();
-            initialized = true;
-            log.info("摄像头初始化成功");
+            nu.pattern.OpenCV.loadLocally();
+            ClassPathResource resource = new ClassPathResource("haarcascade_frontalface_default.xml");
+            detector = new CascadeClassifier(resource.getFile().getAbsolutePath());
+            log.info("Haar级联人脸检测器加载成功");
         } catch (Exception e) {
-            log.error("摄像头初始化失败: {}", e.getMessage(), e);
+            log.error("Haar检测器加载失败: {}", e.getMessage());
         }
     }
 
-    @Override
-    public Result reinitCamera() {
-        try {
-            releaseCamera();
-            Thread.sleep(500);
-            initCapture();
-            startGrabThread();
-            initialized = true;
-            log.info("摄像头重启成功");
-            return Result.success("摄像头重启成功");
-        } catch (Exception e) {
-            log.error("摄像头重启失败: {}", e.getMessage(), e);
-            return Result.error(500, "重启失败: " + e.getMessage());
+    /**
+     * 确保摄像头已启动（懒加载）
+     * 首次调用getLatestJpeg时自动触发
+     */
+    private void ensureCameraStarted() {
+        if (initialized && isRunning.get()) {
+            return;
+        }
+        synchronized (initLock) {
+            if (initialized && isRunning.get()) {
+                return;
+            }
+            try {
+                initCapture();
+                startGrabThread();
+                initialized = true;
+            } catch (Exception e) {
+                log.error("摄像头启动失败: {}", e.getMessage(), e);
+            }
         }
     }
 
+    /**
+     * 初始化摄像头连接
+     * 使用本机设备索引1的摄像头（CAP_DSHOW后端，Windows推荐）
+     */
     private void initCapture() throws Exception {
-        String rtspUrl = String.format("rtsp://%s:%s@%s:%d%s",
-                cameraUsername, cameraPassword, cameraIp, cameraPort, streamPath);
-        log.info("RTSP地址: {}", rtspUrl);
-
-        capture = new VideoCapture(rtspUrl);
+        log.info("正在打开摄像头（设备索引1, CAP_DSHOW）...");
+        capture = new VideoCapture(1 + org.opencv.videoio.Videoio.CAP_DSHOW);
+        log.info("VideoCapture对象创建完成，isOpened={}", capture.isOpened());
 
         if (!capture.isOpened()) {
-            throw new RuntimeException("无法打开RTSP流: " + rtspUrl);
+            throw new RuntimeException("无法打开摄像头（设备索引1），请检查摄像头是否连接");
         }
 
+        // 优化参数：缓冲区只留1帧，减少延迟
         capture.set(org.opencv.videoio.Videoio.CAP_PROP_BUFFERSIZE, 1);
         capture.set(org.opencv.videoio.Videoio.CAP_PROP_FPS, 25);
 
+        // 获取摄像头原始分辨率
         double width = capture.get(3);
         double height = capture.get(4);
         double fps = capture.get(5);
 
         log.info("摄像头初始化成功 | 原始分辨率: {}x{} | 帧率: {}", (int) width, (int) height, fps);
-        cameraInfo.set(new CameraInfo(960, 540, fps, "960x540", true));
+        cameraInfo.set(new CameraInfo(TARGET_WIDTH, TARGET_HEIGHT, fps, TARGET_WIDTH + "x" + TARGET_HEIGHT, true));
     }
 
+    /**
+     * 启动后台拉流线程
+     * 持续从摄像头读取帧，检测人脸并绘制矩形框，压缩为JPEG并缓存到latestFrame
+     */
     private void startGrabThread() {
         isRunning.set(true);
         grabThread = new Thread(() -> {
@@ -110,18 +155,13 @@ public class FaceVideoServiceImpl implements FaceVideoService {
             Mat frame = new Mat();
             Mat resized = new Mat();
             MatOfByte buf = new MatOfByte();
-            MatOfInt compressionParams = new MatOfInt(Imgcodecs.IMWRITE_JPEG_QUALITY, 60);
-            long frameCount = 0;
-            long lastLogTime = System.currentTimeMillis();
-            long lastFrameTime = System.currentTimeMillis();
+            MatOfInt compressionParams = new MatOfInt(Imgcodecs.IMWRITE_JPEG_QUALITY, JPEG_QUALITY);
 
-            int targetWidth = 960;
-            int targetHeight = 540;
+            long lastFrameTime = System.currentTimeMillis();
 
             while (isRunning.get() && !Thread.currentThread().isInterrupted()) {
                 try {
                     if (capture == null || !capture.isOpened()) {
-                        log.warn("VideoCapture已关闭，尝试重连...");
                         Thread.sleep(1000);
                         reconnect();
                         continue;
@@ -132,38 +172,43 @@ public class FaceVideoServiceImpl implements FaceVideoService {
                         continue;
                     }
 
-                    Imgproc.resize(frame, resized, new Size(targetWidth, targetHeight));
+                    frameCount++;
+                    Rect faceRect = null;
+                    if (frameCount % DETECT_INTERVAL == 1) {
+                        faceRect = detectAndDrawFaces(frame);
+                        lastFrameHasFace = (faceRect != null);
+                        if (faceRect != null) {
+                            latestFaceRect.set(faceRect);
+                        }
+                    } else if (lastFrameHasFace) {
+                        faceRect = latestFaceRect.get();
+                        if (faceRect != null) {
+                            Imgproc.rectangle(frame, new Point(faceRect.x, faceRect.y),
+                                    new Point(faceRect.x + faceRect.width, faceRect.y + faceRect.height),
+                                    new Scalar(0, 255, 0), 2);
+                        }
+                    }
+
+                    Imgproc.resize(frame, resized, new Size(TARGET_WIDTH, TARGET_HEIGHT));
                     Imgcodecs.imencode(".jpg", resized, buf, compressionParams);
                     byte[] jpeg = buf.toArray();
 
                     if (jpeg.length > 5000) {
                         latestFrame.set(jpeg);
-                        frameCount++;
                         lastFrameTime = System.currentTimeMillis();
                     }
 
-                    long now = System.currentTimeMillis();
-                    if (now - lastLogTime > 5000) {
-                        long elapsed = now - lastLogTime;
-                        if (elapsed > 0) {
-                            log.info("帧率: {} fps, 帧大小: {} bytes, 延迟: {}ms",
-                                    frameCount * 1000 / elapsed,
-                                    latestFrame.get() != null ? latestFrame.get().length : 0,
-                                    now - lastFrameTime);
-                        }
-                        frameCount = 0;
-                        lastLogTime = now;
-                    }
-
-                    if (now - lastFrameTime > 5000 && frameCount == 0) {
-                        log.warn("5秒无新帧，尝试重连...");
+                    if (System.currentTimeMillis() - lastFrameTime > 5000) {
                         reconnect();
-                        lastFrameTime = now;
+                        lastFrameTime = System.currentTimeMillis();
                     }
 
                 } catch (Exception e) {
-                    log.debug("抓取帧异常: {}", e.getMessage());
-                    try { Thread.sleep(10); } catch (InterruptedException ignored) { break; }
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException ignored) {
+                        break;
+                    }
                 }
             }
 
@@ -173,26 +218,73 @@ public class FaceVideoServiceImpl implements FaceVideoService {
 
             log.info("视频拉流线程停止");
         }, "video-grab-thread");
+
         grabThread.setDaemon(true);
         grabThread.setPriority(Thread.MAX_PRIORITY);
         grabThread.start();
     }
 
+    /**
+     * 使用Haar级联检测人脸并在帧上绘制绿色矩形框
+     * @return 检测到的人脸矩形（未检测到返回null）
+     */
+    private Rect detectAndDrawFaces(Mat frame) {
+        if (detector == null || frame.empty()) {
+            return null;
+        }
+
+        try {
+            Mat gray = new Mat();
+            Imgproc.cvtColor(frame, gray, Imgproc.COLOR_BGR2GRAY);
+            Imgproc.equalizeHist(gray, gray);
+
+            MatOfRect faces = new MatOfRect();
+            detector.detectMultiScale(gray, faces, 1.15, 2, 0, new Size(80, 80), new Size(400, 400));
+
+            Rect firstFace = null;
+            if (!faces.empty()) {
+                java.util.List<Rect> faceList = faces.toList();
+                firstFace = faceList.get(0);
+                for (Rect r : faceList) {
+                    Imgproc.rectangle(frame, new Point(r.x, r.y),
+                            new Point(r.x + r.width, r.y + r.height),
+                            new Scalar(0, 255, 0), 2);
+                }
+            }
+
+            faces.release();
+            gray.release();
+            return firstFace;
+
+        } catch (Exception e) {
+            log.debug("人脸检测异常: {}", e.getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * 重连摄像头
+     * 最多尝试3次
+     */
     private synchronized void reconnect() {
         for (int i = 0; i < 3; i++) {
             try {
                 releaseCapture();
                 Thread.sleep(2000);
                 initCapture();
-                log.info("OpenCV重连成功");
+                log.info("摄像头重连成功");
                 return;
             } catch (Exception e) {
-                log.error("OpenCV重连失败 ({}): {}", i + 1, e.getMessage());
+                log.error("摄像头重连失败 ({}): {}", i + 1, e.getMessage());
             }
         }
-        log.error("OpenCV重连失败，已达最大重试次数");
+        log.error("摄像头重连失败，已达最大重试次数");
     }
 
+    /**
+     * 释放摄像头资源
+     */
     private void releaseCapture() {
         if (capture != null) {
             try {
@@ -203,32 +295,30 @@ public class FaceVideoServiceImpl implements FaceVideoService {
     }
 
     @Override
-    public byte[] grabFrame() {
-        byte[] frame = latestFrame.get();
-        if (frame != null && frame.length > 0) {
-            return frame;
-        }
-        log.debug("grabFrame返回缓存帧");
-        return frame;
-    }
-
-    @Override
     public byte[] getLatestJpeg() {
+        ensureCameraStarted();
         return latestFrame.get();
     }
 
     @Override
-    public BufferedImage getLatestFrameImage() {
+    public FaceFrameInfo getLatestFrameWithInfo() {
+        ensureCameraStarted();
         byte[] jpeg = latestFrame.get();
         if (jpeg == null || jpeg.length == 0) {
             return null;
         }
-        try {
-            return ImageIO.read(new java.io.ByteArrayInputStream(jpeg));
-        } catch (Exception e) {
-            log.debug("JPEG转图片失败: {}", e.getMessage());
-            return null;
+
+        FaceFrameInfo info = new FaceFrameInfo();
+        info.setJpegBase64(java.util.Base64.getEncoder().encodeToString(jpeg));
+        info.setHasFace(lastFrameHasFace);
+
+        Rect rect = latestFaceRect.get();
+        if (rect != null && lastFrameHasFace) {
+            FaceFrameInfo.FaceRect face = new FaceFrameInfo.FaceRect(rect.x, rect.y, rect.width, rect.height);
+            info.setFace(face);
         }
+
+        return info;
     }
 
     @Override
@@ -237,7 +327,9 @@ public class FaceVideoServiceImpl implements FaceVideoService {
         isRunning.set(false);
         if (grabThread != null) {
             grabThread.interrupt();
-            try { grabThread.join(3000); } catch (Exception ignored) {}
+            try {
+                grabThread.join(3000);
+            } catch (Exception ignored) {}
             grabThread = null;
         }
         releaseCapture();
@@ -252,13 +344,19 @@ public class FaceVideoServiceImpl implements FaceVideoService {
     }
 
     @Override
-    public BufferedImage getFrame() {
-        return null;
-    }
-
-    @Override
-    public byte[] getLatestJpegFrame() {
-        return getLatestJpeg();
+    public Result reinitCamera() {
+        try {
+            releaseCamera();
+            Thread.sleep(500);
+            initCapture();
+            startGrabThread();
+            initialized = true;
+            log.info("摄像头重启成功");
+            return Result.success("摄像头重启成功");
+        } catch (Exception e) {
+            log.error("摄像头重启失败: {}", e.getMessage());
+            return Result.error(500, "重启失败: " + e.getMessage());
+        }
     }
 
     @Override

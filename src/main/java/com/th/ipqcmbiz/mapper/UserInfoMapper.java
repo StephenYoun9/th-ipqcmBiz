@@ -9,61 +9,23 @@ import java.util.List;
 @Mapper
 public interface UserInfoMapper {
 
-    /**
-    * @Description 添加用户
-    * @Param userInfo 用户信息
-    * @Return int
-    * @Author 杨兴明
-    * @Date 2026/4/1 14:35
-    */
     int addUser(UserInfoDO userInfo);
 
-    /**
-     * @Description 根据用户id或名称查询用户列表
-     * @Param keyword 关键字，用户id或名称
-     * @Return 用户列表
-    * @Author 杨兴明
-    * @Date 2026/4/1 14:35
-    */
     List<UserInfoDO> queryUserListByIdOrName(@Param("keyword") String keyword);
-    /**
-     * @Description 根据用户编号查询用户信息
-     * @Param userId 用户编号
-     * @Return 用户信息
-     * @Author 杨兴明
-     * @Date 2025/4/23 09:18
-     */
+
     UserInfoDO queryUserById(@Param("userId") String userId);
 
-    /**
-     * @Description 根据用户信息查询用户信息
-     * @Param userInfo 用户信息
-     * @Return 用户信息
-     * @Author 杨兴明
-     * @Date 2025/4/23 09:19
-     */
     UserInfoDO queryUserByUserInfo(UserInfoDO userInfo);
 
-    /**
-     * @Description 根据用户编号集合查询用户信息列表
-     * @Param userIds 用户编号集合
-     * @Return 用户信息列表
-     * @Author 杨兴明
-     * @Date 2025/4/23 11:25
-     */
     List<UserInfoDO> queryUserListByUserIds(List<String> userIds);
 
-    /**
-     * @Description 根据用户ID查询用户信息
-     * @Param userId 用户编号
-     * @Return 用户信息
-     */
     UserInfoDO selectByUserId(@Param("userId") String userId);
 
-    /**
-     * @Description 更新用户人脸录入状态
-     * @Param user 用户信息
-     * @Return int
-     */
     int updateFaceEnrolled(UserInfoDO user);
+
+    int updateFingerEnrolled(UserInfoDO user);
+
+    int updateUser(UserInfoDO user);
+
+    int deleteByUserId(@Param("userId") String userId);
 }

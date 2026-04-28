@@ -5,20 +5,23 @@
     <resultMap id="FaceResultMap" type="com.th.ipqcmbiz.entity.po.FaceInfoDO">
         <result column="ID" property="id"/>
         <result column="UserId" property="userId"/>
-        <result column="UserName" property="userName"/>
-        <result column="FaceFeature" property="faceFeature" jdbcType="BLOB" typeHandler="org.apache.ibatis.type.BlobTypeHandler"/>
-        <result column="Direction" property="direction"/>
+        <result column="FaceIndex" property="faceIndex"/>
+        <result column="FeatureVector" property="featureVector" jdbcType="BLOB" typeHandler="org.apache.ibatis.type.BlobTypeHandler"/>
+        <result column="FaceImage" property="faceImage" jdbcType="BLOB" typeHandler="org.apache.ibatis.type.BlobTypeHandler"/>
+        <result column="QualityScore" property="qualityScore"/>
+        <result column="Threshold" property="threshold"/>
         <result column="CreateTime" property="createTime"/>
     </resultMap>
 
     <insert id="insertFaceWithName" parameterType="com.th.ipqcmbiz.entity.po.FaceInfoDO">
-        Insert Into FACE_DATABASE(ID,UserId,UserName,FaceFeature,Direction,CreateTime)
+        Insert Into FACE_FEATURE(ID, UserId, FaceIndex, FeatureVector, FaceImage, QualityScore, Threshold, CreateTime)
         VALUES
-        (FACE_DATABASE_SEQ.NEXTVAL,#{userId},#{userName},#{faceFeature},#{direction},CURRENT_TIMESTAMP)
+        (FACE_FEATURE_SEQ.NEXTVAL, #{userId}, #{faceIndex}, #{featureVector}, #{faceImage}, #{qualityScore}, #{threshold}, CURRENT_TIMESTAMP)
     </insert>
 
     <select id="selectAllFace" resultMap="FaceResultMap">
-        SELECT ID,UserId,UserName,FaceFeature,Direction,CreateTime FROM FACE_DATABASE
+        SELECT ID, UserId, FaceIndex, FeatureVector, FaceImage, QualityScore, Threshold, CreateTime
+        FROM FACE_FEATURE
     </select>
 
 </mapper>

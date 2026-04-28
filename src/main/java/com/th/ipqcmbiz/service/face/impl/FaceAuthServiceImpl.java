@@ -6,8 +6,6 @@ import com.th.ipqcmbiz.entity.common.Result;
 import com.th.ipqcmbiz.entity.po.FaceFeatureDO;
 import com.th.ipqcmbiz.entity.po.UserInfoDO;
 import com.th.ipqcmbiz.entity.vo.FaceEnrollVO;
-import com.th.ipqcmbiz.entity.vo.FaceRecognizeVO;
-import com.th.ipqcmbiz.entity.vo.FaceVideoEnrollVO;
 import com.th.ipqcmbiz.mapper.UserInfoMapper;
 import com.th.ipqcmbiz.mapper.face.FaceFeatureMapper;
 import com.th.ipqcmbiz.service.face.FaceAuthService;
@@ -15,14 +13,12 @@ import com.th.ipqcmbiz.service.face.FaceVideoService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
-import org.bytedeco.ffmpeg.global.avutil;
-import org.bytedeco.javacv.FFmpegFrameGrabber;
-import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.Java2DFrameConverter;
 import org.opencv.core.*;
 import org.opencv.dnn.Dnn;
 import org.opencv.dnn.Net;
 import org.opencv.imgproc.Imgproc;
+import org.opencv.objdetect.CascadeClassifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -78,26 +74,10 @@ public class FaceAuthServiceImpl implements FaceAuthService {
     @Value("${face.enrollment.quality-threshold:0.5}")
     private float qualityThreshold;
 
-    // ========== 配置项：FFmpeg路径 ==========
-    @Value("${ffmpeg.path:C:/yxm/ffmpeg-n8.1-latest-win64-gpl-8.1/ffmpeg-n8.1-latest-win64-gpl-8.1/bin/ffmpeg.exe}")
-    private String ffmpegPath;
+    // ========== Haar级联人脸检测器 ==========
+    private CascadeClassifier faceDetector;
 
-    // ========== 配置项：摄像头RTSP配置 ==========
-    @Value("${camera.ip}")
-    private String cameraIp;
-    @Value("${camera.port:554}")
-    private int cameraPort;
-    @Value("${camera.username}")
-    private String cameraUsername;
-    @Value("${camera.password}")
-    private String cameraPassword;
-    @Value("${camera.stream-path}")
-    private String streamPath;
-
-    // ========== 模型网络：YuNet人脸检测网络 ==========
-    private Net detectorNet;
-
-    // ========== 模型网络：SFace人脸识别网络 ==========
+    // ========== 模型网络：SFace人脸识别网络（ONNX，需从文件加载） ==========
     private Net recognizerNet;
 
     // ========== JavaCV帧转换器：用于视频流处理 ==========
@@ -130,6 +110,9 @@ public class FaceAuthServiceImpl implements FaceAuthService {
             this.enrollId = enrollId;
             this.userId = userId;
             this.required = required;
+            this.features = new ArrayList<>();
+            this.faceImages = new ArrayList<>();
+            this.qualities = new ArrayList<>();
             this.startTime = System.currentTimeMillis();
         }
     }
@@ -151,6 +134,8 @@ public class FaceAuthServiceImpl implements FaceAuthService {
         VideoEnrollSession(String enrollId, String userId) {
             this.enrollId = enrollId;
             this.userId = userId;
+            this.features = new ArrayList<>();
+            this.qualities = new ArrayList<>();
             this.startTime = System.currentTimeMillis();
             this.totalFrames = 0;
             this.detectedFaces = 0;
@@ -158,32 +143,29 @@ public class FaceAuthServiceImpl implements FaceAuthService {
     }
 
     // ==================== 模型初始化 ====================
-    // 在服务创建后自动执行，加载YuNet和SFace模型
+    // 在服务创建后自动执行，加载Haar检测器和SFace模型
     @PostConstruct
     public void init() {
         try {
             log.info("初始化人脸识别模型...");
 
             // 加载OpenCV本地库（必须先调用）
-            nu.pattern.OpenCV.loadShared();
+            nu.pattern.OpenCV.loadLocally();
 
-            // 从classpath加载YuNet人脸检测模型
-            ClassPathResource detectorResource = new ClassPathResource("face_models/face_detection_yunet_2023mar.onnx");
-            try (InputStream is = detectorResource.getInputStream()) {
-                // 读取模型文件为字节数组
-                byte[] modelData = is.readAllBytes();
-                // 将字节数组转换为OpenCV的MatOfByte格式
-                MatOfByte matOfByte = new MatOfByte(modelData);
-                // 从ONNX格式加载检测网络
-                detectorNet = Dnn.readNetFromONNX(matOfByte);
-            }
+            // 加载Haar级联人脸检测器
+            ClassPathResource haarResource = new ClassPathResource("haarcascade_frontalface_default.xml");
+            faceDetector = new CascadeClassifier(haarResource.getFile().getAbsolutePath());
+            log.info("Haar级联检测器加载成功");
 
-            // 从classpath加载SFace人脸识别模型
+            // 从临时文件加载SFace人脸识别模型（ONNX必须从真实文件路径加载）
             ClassPathResource recognizerResource = new ClassPathResource("face_models/face_recognition_sface_2021dec.onnx");
+            File tempModel = new File(System.getProperty("java.io.tmpdir"), "sface_" + System.currentTimeMillis() + ".onnx");
             try (InputStream is = recognizerResource.getInputStream()) {
-                byte[] modelData = is.readAllBytes();
-                MatOfByte matOfByte = new MatOfByte(modelData);
-                recognizerNet = Dnn.readNetFromONNX(matOfByte);
+                java.nio.file.Files.copy(is, tempModel.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                recognizerNet = Dnn.readNetFromONNX(tempModel.getAbsolutePath());
+                log.info("SFace模型加载成功: {}", tempModel.getAbsolutePath());
+            } finally {
+                tempModel.deleteOnExit();
             }
 
             // 创建JavaCV帧转换器（用于后续视频流处理）
@@ -350,7 +332,7 @@ public class FaceAuthServiceImpl implements FaceAuthService {
             }
 
             // 更新用户的人脸录入标志
-            UserInfoDO user = UserInfoDO.builder().userId(session.userId).faceEnrolled("1").build();
+            UserInfoDO user = UserInfoDO.builder().userId(session.userId).faceRegistered("Y").build();
             userInfoMapper.updateFaceEnrolled(user);
 
             log.info("人脸录入完成: userId={}, count={}", session.userId, session.features.size());
@@ -368,446 +350,6 @@ public class FaceAuthServiceImpl implements FaceAuthService {
     public void cancelEnroll(String enrollId) {
         enrollSessions.remove(enrollId);
         log.info("取消录入: enrollId={}", enrollId);
-    }
-
-    // ==================== 视频模式：开始视频录入会话 ====================
-    // 创建VideoEnrollSession，开启视频录入流程
-    @Override
-    public String startVideoEnroll(String userId) {
-        // 生成唯一的会话ID
-        String enrollId = UUID.randomUUID().toString();
-        // 创建视频录入会话
-        VideoEnrollSession session = new VideoEnrollSession(enrollId, userId);
-        // 存入Map
-        videoEnrollSessions.put(enrollId, session);
-        log.info("开始视频录入会话: enrollId={}, userId={}", enrollId, userId);
-        return enrollId;
-    }
-
-    // ==================== 视频模式：添加视频帧 ====================
-    // 每收到一帧就调用此方法，检测人脸、评估质量、提取特征
-    @Override
-    public FaceVideoEnrollVO addVideoFrame(String enrollId, String userId, int frameIndex, String imageData) {
-        // 创建返回对象
-        FaceVideoEnrollVO vo = new FaceVideoEnrollVO();
-        vo.setEnrollId(enrollId);
-        vo.setUserId(userId);
-        vo.setFrameIndex(frameIndex);
-
-        // 查找会话
-        VideoEnrollSession session = videoEnrollSessions.get(enrollId);
-        if (session == null) {
-            vo.setMessage("录入会话不存在或已过期");
-            return vo;
-        }
-
-        // userId校验
-        if (!session.userId.equals(userId)) {
-            vo.setMessage("用户ID不匹配");
-            return vo;
-        }
-
-        // 总帧数+1（无论是否检测到人脸）
-        session.totalFrames++;
-
-        try {
-            // 步骤1：Base64解码图片
-            BufferedImage image = decodeBase64Image(imageData);
-            if (image == null) {
-                vo.setMessage("图片解析失败");
-                return vo;
-            }
-
-            // 步骤2：YuNet人脸检测
-            BufferedImage face = detectAndCropFace(image);
-            if (face == null) {
-                vo.setDetected(false);
-                vo.setMessage("未检测到人脸");
-                return vo;
-            }
-
-            // 步骤3：质量评估
-            float quality = assessQuality(face);
-            vo.setQuality(quality);
-
-            // 质量不达标，不存储
-            if (quality < qualityThreshold) {
-                vo.setDetected(false);
-                vo.setMessage("人脸质量不足");
-                return vo;
-            }
-
-            // 步骤4：SFace特征提取
-            float[] feature = extractFeature(face);
-            if (feature == null) {
-                vo.setDetected(false);
-                vo.setMessage("特征提取失败");
-                return vo;
-            }
-
-            // 步骤5：存储到会话
-            session.features.add(feature);
-            session.qualities.add(quality);
-            session.detectedFaces++;
-
-            // 设置返回信息
-            vo.setDetected(true);
-            vo.setDetectedFaces(session.detectedFaces);
-            vo.setTotalFrames(session.totalFrames);
-            vo.setMessage("已检测到人脸，质量: " + String.format("%.0f%%", quality * 100));
-
-            log.debug("视频帧处理: enrollId={}, frameIndex={}, detected={}, quality={}",
-                    enrollId, frameIndex, true, quality);
-
-        } catch (Exception e) {
-            log.error("处理视频帧失败: {}", e.getMessage(), e);
-            vo.setMessage("处理失败: " + e.getMessage());
-        }
-
-        return vo;
-    }
-
-    // ==================== 视频模式：完成录入 ====================
-    // 从检测到的所有人脸中选取质量最好的8张存入数据库
-    @Override
-    public Result completeVideoEnroll(String enrollId) {
-        // 移除会话
-        VideoEnrollSession session = videoEnrollSessions.remove(enrollId);
-        if (session == null) {
-            return Result.error(400, "录入会话不存在或已过期");
-        }
-
-        // 没有检测到任何有效人脸
-        if (session.features.isEmpty()) {
-            return Result.error(400, "未检测到有效人脸，请确保光线充足且正对摄像头");
-        }
-
-        // 检测到的人脸不足8张
-        if (session.features.size() < 8) {
-            return Result.error(400, "检测到的人脸不足8张，请重试。当前检测到: " + session.features.size() + " 张");
-        }
-
-        try {
-            // 质量排序筛选
-            // 创建索引列表[0, 1, 2, ..., n-1]
-            List<Integer> indices = new ArrayList<>();
-            for (int i = 0; i < session.features.size(); i++) {
-                indices.add(i);
-            }
-            // 按质量降序排序索引
-            indices.sort((a, b) -> Float.compare(session.qualities.get(b), session.qualities.get(a)));
-
-            // 取质量最好的8个
-            List<float[]> topFeatures = new ArrayList<>();
-            List<Float> topQualities = new ArrayList<>();
-            for (int i = 0; i < 8 && i < indices.size(); i++) {
-                int idx = indices.get(i);
-                topFeatures.add(session.features.get(idx));
-                topQualities.add(session.qualities.get(idx));
-            }
-
-            // 获取Mapper
-            FaceFeatureMapper mapper = SpringContext.getBean(FaceFeatureMapper.class);
-            UserInfoMapper userInfoMapper = SpringContext.getBean(UserInfoMapper.class);
-
-            // 批量存储到数据库
-            for (int i = 0; i < topFeatures.size(); i++) {
-                FaceFeatureDO faceFeature = new FaceFeatureDO();
-                faceFeature.setId(System.currentTimeMillis() + i);
-                faceFeature.setUserId(session.userId);
-                faceFeature.setFaceIndex(i + 1);
-                faceFeature.setFeatureVector(floatsToBytes(topFeatures.get(i)));
-                // 视频模式不存储人脸图片，faceImage为null
-                faceFeature.setQualityScore(topQualities.get(i));
-                faceFeature.setThreshold(defaultThreshold);
-                faceFeature.setCreateTime(new Date());
-                mapper.insert(faceFeature);
-            }
-
-            // 更新用户状态
-            UserInfoDO user = UserInfoDO.builder().userId(session.userId).faceEnrolled("1").build();
-            userInfoMapper.updateFaceEnrolled(user);
-
-            log.info("视频人脸录入完成: userId={}, detected={}, saved=8",
-                    session.userId, session.detectedFaces);
-            return Result.success("人脸录入完成，共检测到 " + session.detectedFaces + " 张，选取质量最高的 8 张存入数据库");
-
-        } catch (Exception e) {
-            log.error("保存视频人脸失败: {}", e.getMessage(), e);
-            return Result.error(500, "保存失败: " + e.getMessage());
-        }
-    }
-
-    // ==================== 视频录制模式（后端FFmpeg录制） ====================
-    // 使用FFmpeg从RTSP流录制5秒视频，然后从视频中提取人脸进行录入
-    @Override
-    public Result recordVideoEnroll(String userId) {
-        String videoPath = null;
-        FFmpegFrameGrabber grabber = null;
-
-        try {
-            // 构建RTSP URL
-            String rtspUrl = String.format("rtsp://%s:%s@%s:%d%s",
-                    cameraUsername, cameraPassword, cameraIp, cameraPort, streamPath);
-            log.info("开始录制视频: userId={}, rtspUrl={}", userId, rtspUrl);
-
-            // 创建临时视频文件路径
-            String tempDir = System.getProperty("java.io.tmpdir");
-            videoPath = tempDir + "/face_video_" + System.currentTimeMillis() + ".mp4";
-
-            // 使用JavaCV FFmpegFrameGrabber录制视频
-            grabber = new FFmpegFrameGrabber(rtspUrl);
-            grabber.setOption("rtsp_transport", "tcp");
-            grabber.setImageWidth(640);
-            grabber.setImageHeight(480);
-            grabber.setAudioChannels(0);  // 不录制音频
-            grabber.start();
-
-            // 录制5秒视频
-            long startTime = System.currentTimeMillis();
-            int frameCount = 0;
-            long totalFrames = 0;
-
-            // 使用JavaCV录制
-            Java2DFrameConverter converter = new Java2DFrameConverter();
-            avutil.av_log_set_level(avutil.AV_LOG_ERROR);
-
-            List<BufferedImage> frames = new ArrayList<>();
-
-            while (System.currentTimeMillis() - startTime < 5000) {
-                try {
-                    Frame frame = grabber.grabImage();
-                    if (frame != null && frame.image != null) {
-                        BufferedImage img = converter.convert(frame);
-                        if (img != null) {
-                            frames.add(img);
-                            frameCount++;
-                        }
-                    }
-                    totalFrames++;
-                    // 稍微sleep一下避免CPU 100%
-                    Thread.sleep(10);
-                } catch (Exception e) {
-                    log.debug("录制帧异常: {}", e.getMessage());
-                }
-            }
-
-            grabber.stop();
-            grabber.release();
-            grabber = null;
-
-            log.info("录制完成: userId={}, 捕获帧数={}, 有效帧数={}", userId, totalFrames, frameCount);
-
-            if (frames.isEmpty()) {
-                return Result.error(400, "录制失败：未能获取到视频帧");
-            }
-
-            // 处理录制的帧，提取人脸
-            List<float[]> allFeatures = new ArrayList<>();
-            List<Float> allQualities = new ArrayList<>();
-            int detectedCount = 0;
-
-            for (BufferedImage img : frames) {
-                BufferedImage face = detectAndCropFace(img);
-                if (face != null) {
-                    float quality = assessQuality(face);
-                    if (quality >= qualityThreshold) {
-                        float[] feature = extractFeature(face);
-                        if (feature != null) {
-                            allFeatures.add(feature);
-                            allQualities.add(quality);
-                            detectedCount++;
-                        }
-                    }
-                }
-            }
-
-            log.info("人脸检测完成: userId={}, 检测到有效人脸={}", userId, detectedCount);
-
-            if (allFeatures.isEmpty()) {
-                return Result.error(400, "未检测到有效人脸，请确保光线充足且正对摄像头");
-            }
-
-            if (allFeatures.size() < 8) {
-                return Result.error(400, "检测到的人脸不足8张（" + allFeatures.size() + "张），请重试");
-            }
-
-            // 按质量排序，选取最好的8张
-            List<Integer> indices = new ArrayList<>();
-            for (int i = 0; i < allFeatures.size(); i++) {
-                indices.add(i);
-            }
-            indices.sort((a, b) -> Float.compare(allQualities.get(b), allQualities.get(a)));
-
-            List<float[]> topFeatures = new ArrayList<>();
-            for (int i = 0; i < 8; i++) {
-                topFeatures.add(allFeatures.get(indices.get(i)));
-            }
-
-            // 存入数据库
-            FaceFeatureMapper mapper = SpringContext.getBean(FaceFeatureMapper.class);
-            UserInfoMapper userInfoMapper = SpringContext.getBean(UserInfoMapper.class);
-
-            for (int i = 0; i < topFeatures.size(); i++) {
-                FaceFeatureDO faceFeature = new FaceFeatureDO();
-                faceFeature.setId(System.currentTimeMillis() + i);
-                faceFeature.setUserId(userId);
-                faceFeature.setFaceIndex(i + 1);
-                faceFeature.setFeatureVector(floatsToBytes(topFeatures.get(i)));
-                faceFeature.setQualityScore(allQualities.get(indices.get(i)));
-                faceFeature.setThreshold(defaultThreshold);
-                faceFeature.setCreateTime(new Date());
-                mapper.insert(faceFeature);
-            }
-
-            // 更新用户状态
-            UserInfoDO user = UserInfoDO.builder().userId(userId).faceEnrolled("1").build();
-            userInfoMapper.updateFaceEnrolled(user);
-
-            log.info("视频人脸录入完成: userId={}, detected={}, saved=8", userId, detectedCount);
-            return Result.success("人脸录入完成，共检测到 " + detectedCount + " 张，选取质量最高的 8 张存入数据库");
-
-        } catch (Exception e) {
-            log.error("录制视频人脸录入失败: {}", e.getMessage(), e);
-            return Result.error(500, "录制失败: " + e.getMessage());
-        } finally {
-            // 确保资源释放
-            if (grabber != null) {
-                try {
-                    grabber.stop();
-                    grabber.release();
-                } catch (Exception ignored) {}
-            }
-            // 清理临时视频文件
-            if (videoPath != null) {
-                try {
-                    File f = new File(videoPath);
-                    if (f.exists()) {
-                        f.delete();
-                    }
-                } catch (Exception ignored) {}
-            }
-        }
-    }
-
-    // ==================== 人脸识别登录 ====================
-    // 从视频流获取帧，检测人脸并与数据库中的人脸比对
-    @Override
-    public FaceRecognizeVO recognize(String userId) {
-        FaceRecognizeVO vo = new FaceRecognizeVO();
-        vo.setThreshold(defaultThreshold);
-
-        try {
-            // 获取当前视频帧
-            BufferedImage frame = getCurrentFrame();
-            if (frame == null) {
-                vo.setMessage("无法获取摄像头画面");
-                return vo;
-            }
-
-            // 检测人脸
-            BufferedImage face = detectAndCropFace(frame);
-            if (face == null) {
-                vo.setMessage("未检测到人脸");
-                return vo;
-            }
-
-            // 提取特征
-            float[] queryFeature = extractFeature(face);
-            if (queryFeature == null) {
-                vo.setMessage("特征提取失败");
-                return vo;
-            }
-
-            // 获取Mapper
-            FaceFeatureMapper mapper = SpringContext.getBean(FaceFeatureMapper.class);
-            UserInfoMapper userInfoMapper = SpringContext.getBean(UserInfoMapper.class);
-
-            // 加载人脸数据
-            List<FaceFeatureDO> faceList;
-            if (userId != null && !userId.isEmpty()) {
-                // 指定用户：只加载该用户的人脸
-                faceList = mapper.selectByUserId(userId);
-            } else {
-                // 未指定：加载所有用户的人脸
-                faceList = mapper.selectAll();
-            }
-
-            if (faceList.isEmpty()) {
-                vo.setMessage("无人脸数据，请先录入");
-                return vo;
-            }
-
-            // 与每个人脸比对，找最相似的
-            float maxSimilarity = 0;
-            String matchedUserId = null;
-            String matchedUserName = null;
-
-            for (FaceFeatureDO faceFeature : faceList) {
-                // 计算余弦相似度
-                float similarity = cosineSimilarity(queryFeature, faceFeature.getFeatureVector());
-                if (similarity > maxSimilarity) {
-                    maxSimilarity = similarity;
-                    matchedUserId = faceFeature.getUserId();
-                }
-            }
-
-            // 判断是否匹配成功
-            if (maxSimilarity > defaultThreshold) {
-                // 匹配成功，获取用户信息
-                UserInfoDO user = userInfoMapper.queryUserById(matchedUserId);
-                if (user != null) {
-                    matchedUserName = user.getUserName();
-                }
-                vo.setMatched(true);
-                vo.setUserId(matchedUserId);
-                vo.setUserName(matchedUserName);
-                vo.setSimilarity(maxSimilarity);
-                vo.setMessage("识别成功，相似度: " + String.format("%.2f", maxSimilarity * 100) + "%");
-            } else {
-                vo.setMatched(false);
-                vo.setSimilarity(maxSimilarity);
-                vo.setMessage("未匹配到用户，相似度: " + String.format("%.2f", maxSimilarity * 100) + "%");
-            }
-
-            log.info("人脸识别: userId={}, matched={}, similarity={}", userId, vo.isMatched(), maxSimilarity);
-
-        } catch (Exception e) {
-            log.error("人脸识别失败: {}", e.getMessage(), e);
-            vo.setMessage("识别失败: " + e.getMessage());
-        }
-
-        return vo;
-    }
-
-    // ==================== 获取录入状态 ====================
-    // 查询指定用户已录入的人脸数量
-    @Override
-    public FaceEnrollVO getEnrollStatus(String userId) {
-        FaceEnrollVO vo = new FaceEnrollVO();
-        vo.setUserId(userId);
-
-        try {
-            FaceFeatureMapper mapper = SpringContext.getBean(FaceFeatureMapper.class);
-            // 查询该用户已录入的人脸数量
-            int count = mapper.countByUserId(userId);
-            vo.setCaptured(count);
-            vo.setRequired(defaultFaceCount);
-            vo.setProgress((int) (count * 100.0 / defaultFaceCount));
-
-            if (count >= defaultFaceCount) {
-                vo.setCompleted(true);
-                vo.setMessage("已录入 " + count + " 张");
-            } else {
-                vo.setMessage("已录入 " + count + "/" + defaultFaceCount + " 张");
-            }
-
-        } catch (Exception e) {
-            log.error("查询录入状态失败: {}", e.getMessage());
-            vo.setMessage("查询失败");
-        }
-
-        return vo;
     }
 
     // ==================== 提取人脸特征（SFace模型） ====================
@@ -857,7 +399,7 @@ public class FaceAuthServiceImpl implements FaceAuthService {
         }
     }
 
-    // ==================== 检测并裁剪人脸（YuNet模型） ====================
+    // ==================== 检测并裁剪人脸（Haar级联） ====================
     // 输入原始图片，输出裁剪后的人脸图片
     @Override
     public BufferedImage detectAndCropFace(BufferedImage image) {
@@ -866,117 +408,45 @@ public class FaceAuthServiceImpl implements FaceAuthService {
         }
 
         try {
-            // 转换为OpenCV Mat
             Mat mat = bufferedImageToMat(image);
+            Mat gray = new Mat();
+            Imgproc.cvtColor(mat, gray, Imgproc.COLOR_BGR2GRAY);
+            Imgproc.equalizeHist(gray, gray);
 
-            // BGR转RGB（OpenCV原生格式是BGR，需要转成RGB给模型用）
-            Mat rgbMat = new Mat();
-            Imgproc.cvtColor(mat, rgbMat, Imgproc.COLOR_BGR2RGB);
-
-            // 创建DNN输入blob
-            // YuNet输入：160x160，缩放因子1/255
-            // swapRB=false因为我们已经手动做了BGR→RGB转换，不需要再swap
-            Mat blob = Dnn.blobFromImage(rgbMat, 1.0 / 255.0, new Size(160, 160), new Scalar(0, 0, 0), false, false);
-            detectorNet.setInput(blob);
-
-            // 前向传播获取检测结果
-            Mat detection = detectorNet.forward();
-
-            log.debug("YuNet输出 shape: [{}, {}, {}, {}], type: {}",
-                    detection.dims(), detection.size(0), detection.size(1), detection.size(2), detection.type());
-
-            // 遍历所有检测结果，找置信度最高的
-            float maxConf = 0;
-            float[] bestFace = null;
-
-            // YuNet输出：[1, 1, N, 15]，N是检测数量
-            int numDetections = detection.size(2);
-            log.debug("检测到 {} 个人脸候选", numDetections);
-
-            // 将4D tensor展平为1D数组，然后按检测分组读取
-            // [1, 1, N, 15] -> [N*15] 元素
-            Mat flat = detection.reshape(1);
-            float[] allData = new float[numDetections * 15];
-            flat.get(0, 0, allData);
-
-            for (int i = 0; i < numDetections; i++) {
-                float[] data = new float[15];
-                // 每15个连续元素为一个检测的结果
-                System.arraycopy(allData, i * 15, data, 0, 15);
-
-                // data[0-3]是[x, y, w, h]相对坐标，data[4]是置信度
-                float conf = data[4];
-                log.debug("第{}个检测, conf={}, bbox=[{}, {}, {}, {}]",
-                        i, conf, data[0], data[1], data[2], data[3]);
-
-                if (conf > maxConf) {
-                    maxConf = conf;
-                    bestFace = data.clone();
-                }
+            MatOfRect faces = new MatOfRect();
+            if (faceDetector != null) {
+                faceDetector.detectMultiScale(gray, faces, 1.15, 2, 0, new Size(80, 80), new Size(400, 400));
             }
 
-            log.debug("最大置信度: {}", maxConf);
-
-            // 只处理置信度>0.3的检测结果（降低阈值以便检测到更多人脸）
-            if (bestFace != null && maxConf > 0.3) {
-                // data[0-3]是[x, y, w, h]，都是相对坐标（0-1）
-                float x = bestFace[0];
-                float y = bestFace[1];
-                float w = bestFace[2];
-                float h = bestFace[3];
-
-                log.debug("人脸位置(相对值): x={}, y={}, w={}, h={}", x, y, w, h);
-                log.debug("原始图像尺寸: cols={}, rows={}", mat.cols(), mat.rows());
-
-                // 相对坐标转换为绝对像素坐标
-                int imgWidth = mat.cols();
-                int imgHeight = mat.rows();
-                int faceLeft = (int) (x * imgWidth);
-                int faceTop = (int) (y * imgHeight);
-                int faceWidth = (int) (w * imgWidth);
-                int faceHeight = (int) (h * imgHeight);
-
-                log.debug("人脸位置(绝对像素): left={}, top={}, width={}, height={}",
-                        faceLeft, faceTop, faceWidth, faceHeight);
-
-                // 添加20%边界margin
-                int margin = (int) (Math.max(faceWidth, faceHeight) * 0.2);
-                int ix = Math.max(0, faceLeft - margin);
-                int iy = Math.max(0, faceTop - margin);
-                int iw = Math.min(imgWidth - ix, faceWidth + margin * 2);
-                int ih = Math.min(imgHeight - iy, faceHeight + margin * 2);
-
-                log.debug("裁剪区域(加margin后): x={}, y={}, w={}, h={}", ix, iy, iw, ih);
-
-                // 裁剪人脸区域
-                Rect faceRect = new Rect(ix, iy, iw, ih);
-                Mat faceMat = new Mat(mat, faceRect);
-
-                // 缩放到112x112
-                Mat resized = new Mat();
-                Imgproc.resize(faceMat, resized, new Size(112, 112));
-
-                // 转换为BufferedImage
-                BufferedImage face = matToBufferedImage(resized);
-
-                // 释放OpenCV资源
+            List<Rect> faceList = faces.toList();
+            if (faceList.isEmpty()) {
                 mat.release();
-                rgbMat.release();
-                blob.release();
-                detection.release();
-                faceMat.release();
-                resized.release();
-
-                return face;
-            } else {
-                log.debug("未检测到人脸或置信度太低");
+                gray.release();
+                faces.release();
+                return null;
             }
 
-            // 释放资源
+            Rect r = faceList.get(0);
+            int margin = (int) (Math.max(r.width, r.height) * 0.2);
+            int ix = Math.max(0, r.x - margin);
+            int iy = Math.max(0, r.y - margin);
+            int iw = Math.min(mat.cols() - ix, r.width + margin * 2);
+            int ih = Math.min(mat.rows() - iy, r.height + margin * 2);
+
+            Rect faceRect = new Rect(ix, iy, iw, ih);
+            Mat faceMat = new Mat(mat, faceRect);
+            Mat resized = new Mat();
+            Imgproc.resize(faceMat, resized, new Size(112, 112));
+
+            BufferedImage face = matToBufferedImage(resized);
+
             mat.release();
-            rgbMat.release();
-            blob.release();
-            detection.release();
+            gray.release();
+            faces.release();
+            faceMat.release();
+            resized.release();
+
+            return face;
 
         } catch (Exception e) {
             log.error("人脸检测失败: {}", e.getMessage(), e);
@@ -1243,91 +713,6 @@ public class FaceAuthServiceImpl implements FaceAuthService {
         return vo;
     }
 
-    // ==================== 使用上传图片进行识别 ====================
-    // 与recognize的区别：图片数据由前端上传
-    @Override
-    public FaceRecognizeVO recognizeWithImage(String userId, String imageData) {
-        FaceRecognizeVO vo = new FaceRecognizeVO();
-        vo.setThreshold(defaultThreshold);
-
-        try {
-            // Base64解码
-            BufferedImage image = decodeBase64Image(imageData);
-            if (image == null) {
-                vo.setMessage("图片解析失败");
-                return vo;
-            }
-
-            // 检测人脸
-            BufferedImage face = detectAndCropFace(image);
-            if (face == null) {
-                vo.setMessage("未检测到人脸");
-                return vo;
-            }
-
-            // 提取特征
-            float[] queryFeature = extractFeature(face);
-            if (queryFeature == null) {
-                vo.setMessage("特征提取失败");
-                return vo;
-            }
-
-            // 获取Mapper
-            FaceFeatureMapper mapper = SpringContext.getBean(FaceFeatureMapper.class);
-            UserInfoMapper userInfoMapper = SpringContext.getBean(UserInfoMapper.class);
-
-            // 加载人脸数据
-            List<FaceFeatureDO> faceList;
-            if (userId != null && !userId.isEmpty()) {
-                faceList = mapper.selectByUserId(userId);
-            } else {
-                faceList = mapper.selectAll();
-            }
-
-            if (faceList.isEmpty()) {
-                vo.setMessage("无人脸数据，请先录入");
-                return vo;
-            }
-
-            // 遍历比对
-            float maxSimilarity = 0;
-            String matchedUserId = null;
-            String matchedUserName = null;
-
-            for (FaceFeatureDO faceFeature : faceList) {
-                float similarity = cosineSimilarity(queryFeature, faceFeature.getFeatureVector());
-                if (similarity > maxSimilarity) {
-                    maxSimilarity = similarity;
-                    matchedUserId = faceFeature.getUserId();
-                }
-            }
-
-            // 判断是否匹配
-            if (maxSimilarity > defaultThreshold) {
-                UserInfoDO user = userInfoMapper.queryUserById(matchedUserId);
-                if (user != null) {
-                    matchedUserName = user.getUserName();
-                }
-                vo.setMatched(true);
-                vo.setUserId(matchedUserId);
-                vo.setUserName(matchedUserName);
-                vo.setSimilarity(maxSimilarity);
-                vo.setMessage("识别成功，相似度: " + String.format("%.2f", maxSimilarity * 100) + "%");
-            } else {
-                vo.setMatched(false);
-                vo.setSimilarity(maxSimilarity);
-                vo.setMessage("未匹配到用户，相似度: " + String.format("%.2f", maxSimilarity * 100) + "%");
-            }
-
-            log.info("人脸识别(图片): userId={}, matched={}, similarity={}", userId, vo.isMatched(), maxSimilarity);
-
-        } catch (Exception e) {
-            log.error("人脸识别失败: {}", e.getMessage(), e);
-            vo.setMessage("识别失败: " + e.getMessage());
-        }
-
-        return vo;
-    }
 
     // ==================== Base64图片解码 ====================
     // 将Base64字符串解码为BufferedImage
@@ -1350,6 +735,24 @@ public class FaceAuthServiceImpl implements FaceAuthService {
         } catch (Exception e) {
             log.error("Base64图片解码失败: {}", e.getMessage());
             return null;
+        }
+    }
+
+    @Override
+    public Result deleteFaceData(String userId) {
+        try {
+            FaceFeatureMapper mapper = SpringContext.getBean(FaceFeatureMapper.class);
+            UserInfoMapper userMapper = SpringContext.getBean(UserInfoMapper.class);
+
+            mapper.deleteByUserId(userId);
+            UserInfoDO user = UserInfoDO.builder().userId(userId).faceRegistered("N").build();
+            userMapper.updateFaceEnrolled(user);
+
+            log.info("删除用户人脸数据: userId={}", userId);
+            return Result.success("人脸数据已删除，可重新采集");
+        } catch (Exception e) {
+            log.error("删除人脸数据失败: {}", e.getMessage(), e);
+            return Result.error(500, "删除失败: " + e.getMessage());
         }
     }
 }

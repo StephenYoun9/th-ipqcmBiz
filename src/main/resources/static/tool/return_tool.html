@@ -3,23 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <title>智能工具柜 - 还工具</title>
-  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/common.css">
+  <link rel="stylesheet" href="css/return_tool.css">
 </head>
 <body>
-<!-- 顶部导航 -->
 <div class="header">
   <div class="logo">智能工具柜管理系统</div>
   <div class="user-info">
     <a href="../employee/employee_index.html" class="btn btn-default">返回主界面</a>
-    <span>当前登录：张三（工号：001）</span>
+     <a class="btn btn-danger" href="javascript:void(0)" onclick="logout()">退出登录</a>
+     <span>当前登录：张三（工号：001）</span>
   </div>
 </div>
 
-<!-- 待归还工具区 -->
 <div class="card">
   <h2>还工具</h2>
   <div class="alert alert-info">
-    请确认要归还的工具，点击“确认归还”后归还柜门将开启，请放入对应工具！
+    请确认要归还的工具，点击"确认归还"后归还柜门将开启，请放入对应工具！
   </div>
 
   <h3>当前未归还工具</h3>
@@ -49,25 +49,27 @@
   </div>
 </div>
 
-<!-- 操作提示区 -->
 <div class="card">
   <h3>归还进度提示</h3>
   <div class="alert alert-info" id="returnTips">
     等待确认归还操作...
   </div>
 </div>
-
+<script src="../js/constants.js"></script>
+<script src="../js/auth.js"></script>
+<script src="js/return_tool.js"></script>
 <script>
-  // 模拟归还操作
-  document.getElementById('returnBtn').addEventListener('click', function() {
-    document.getElementById('returnTips').className = 'alert alert-success';
-    document.getElementById('returnTips').innerText = '归还柜门已开启（A01柜），请放入扳手（W001），系统将自动采集影像确认！放入后请关闭柜门，等待识别结果...';
-
-    // 模拟延迟反馈识别结果
-    setTimeout(() => {
-      document.getElementById('returnTips').innerText = '影像识别匹配成功！扳手（W001）已归还，工具状态更新为“可借”，归还完成！';
-    }, 3000);
-  });
+if (!initPageAuth(SESSION_TIMEOUT)) {
+    // Already redirected to login
+} else {
+    const userInfo = getUserInfo();
+    if (userInfo) {
+        const spanEl = document.querySelector('.user-info span');
+        if (spanEl) {
+            spanEl.textContent = '当前登录：' + (userInfo.userName || '未知') + '（工号：' + (userInfo.userId || '') + '）';
+        }
+    }
+}
 </script>
 </body>
 </html>

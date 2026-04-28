@@ -37,12 +37,8 @@ public class UserInfoDO {
     private String faceRegistered;
 
     /**
-     * 是否启用人脸登录
+     * 指纹录入状态
      */
-    private String faceEnabled;
+    private String fingerRegistered;
 
-    /**
-     * 是否已录入人脸
-     */
-    private String faceEnrolled;
 }

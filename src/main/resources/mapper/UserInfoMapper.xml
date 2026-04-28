@@ -9,40 +9,37 @@
         <result property="status" javaType="Integer" column="Status" jdbcType="INTEGER"/>
         <result property="userRole" javaType="Integer" column="UserRole" jdbcType="INTEGER"/>
         <result property="faceRegistered" javaType="String" column="FaceRegistered" jdbcType="VARCHAR"/>
-        <result property="faceEnabled" javaType="String" column="FaceEnabled" jdbcType="VARCHAR"/>
-        <result property="faceEnrolled" javaType="String" column="FaceEnrolled" jdbcType="VARCHAR"/>
+        <result property="fingerRegistered" javaType="String" column="FingerRegistered" jdbcType="VARCHAR"/>
     </resultMap>
 
-
     <select id="queryUserById" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO" parameterType="java.lang.String">
-        SELECT UserId, UserName,Password,Status,UserRole,FaceRegistered, FaceEnabled, FaceEnrolled
+        SELECT UserId, UserName, Password, Status, UserRole, FaceRegistered, FingerRegistered
         FROM USER_INFO
         WHERE UserId = #{userId}
     </select>
 
     <insert id="addUser">
-        INSERT INTO USER_INFO (Id,UserId, UserName, PassWord, Status, UserRole,FaceRegistered,CreateTime)
-            VALUES (user_info_seq.NEXTVAL,#{userId}, #{userName}, #{password}, #{status}, #{userRole},#{faceRegistered}, SYSDATE)
+        INSERT INTO USER_INFO (Id, UserId, UserName, PassWord, Status, UserRole, FaceRegistered, FingerRegistered, CreateTime)
+            VALUES (user_info_seq.NEXTVAL, #{userId}, #{userName}, #{password}, #{status}, #{userRole}, #{faceRegistered}, #{fingerRegistered}, SYSDATE)
     </insert>
-
-
 
     <select id="queryUserByUserInfo" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO"
             parameterType="com.th.ipqcmbiz.entity.po.UserInfoDO">
-        SELECT UserID,UserName
+        SELECT UserId, UserName, FaceRegistered, FingerRegistered
         FROM USER_INFO
         <where>
-            <if test="userName != null &amp; userName != ''">
+            <if test="userName != null and userName != ''">
                 AND UserName = #{userName}
             </if>
-            <if test="userId != null &amp; userId != ''">
+            <if test="userId != null and userId != ''">
                 AND UserId = #{userId}
             </if>
         </where>
         Order By UserRole
     </select>
+
     <select id="queryUserListByUserIds" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO">
-        SELECT UserId,UserName
+        SELECT UserId, UserName, FaceRegistered, FingerRegistered
         FROM USER_INFO
         <where>
             <if test="userIds != null and userIds.size() > 0">
@@ -53,29 +50,49 @@
             </if>
         </where>
     </select>
-    <select id="queryUserListByIdOrName" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO">
 
-        SELECT UserId, UserName,Password,Status,UserRole,FaceRegistered, FaceEnabled, FaceEnrolled
+    <select id="queryUserListByIdOrName" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO">
+        SELECT UserId, UserName, Password, Status, UserRole, FaceRegistered, FingerRegistered
         FROM USER_INFO
         <where>
-            <if test="keyword != null &amp; keyword != ''">
+            <if test="keyword != null and keyword != ''">
                 UserId like '%'||#{keyword}||'%'
                 OR UserName like '%'||#{keyword}||'%'
             </if>
         </where>
-
     </select>
 
     <select id="selectByUserId" resultType="com.th.ipqcmbiz.entity.po.UserInfoDO">
-        SELECT UserId, UserName, Password, Status, UserRole, FaceRegistered, FaceEnabled, FaceEnrolled
+        SELECT UserId, UserName, Password, Status, UserRole, FaceRegistered, FingerRegistered
         FROM USER_INFO
         WHERE UserId = #{userId}
     </select>
 
     <update id="updateFaceEnrolled" parameterType="com.th.ipqcmbiz.entity.po.UserInfoDO">
         UPDATE USER_INFO
-        SET FaceEnrolled = #{faceEnrolled}
+        SET FaceRegistered = #{faceRegistered}
         WHERE UserId = #{userId}
     </update>
+
+    <update id="updateFingerEnrolled" parameterType="com.th.ipqcmbiz.entity.po.UserInfoDO">
+        UPDATE USER_INFO
+        SET FingerRegistered = #{fingerRegistered}
+        WHERE UserId = #{userId}
+    </update>
+
+    <update id="updateUser" parameterType="com.th.ipqcmbiz.entity.po.UserInfoDO">
+        UPDATE USER_INFO
+        <set>
+            <if test="userName != null and userName != ''">UserName = #{userName},</if>
+            <if test="password != null and password != ''">PassWord = #{password},</if>
+            <if test="status != null">Status = #{status},</if>
+            <if test="userRole != null">UserRole = #{userRole},</if>
+        </set>
+        WHERE UserId = #{userId}
+    </update>
+
+    <delete id="deleteByUserId" parameterType="java.lang.String">
+        DELETE FROM USER_INFO WHERE UserId = #{userId}
+    </delete>
 
 </mapper>

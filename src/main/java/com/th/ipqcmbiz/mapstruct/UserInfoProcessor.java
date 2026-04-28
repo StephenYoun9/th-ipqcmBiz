@@ -40,6 +40,7 @@ public interface UserInfoProcessor {
     }
 
     @Mapping(source = "faceRegistered", target = "faceRegistered", qualifiedByName = "stringToBoolean")
+    @Mapping(source = "fingerRegistered", target = "fingerRegistered", qualifiedByName = "stringToBoolean")
     UserInfoRespVO po2Vo(UserInfoDO userInfoDO);
 
     @Mapping(source = "faceRegistered", target = "faceRegistered", qualifiedByName = "booleanToString")

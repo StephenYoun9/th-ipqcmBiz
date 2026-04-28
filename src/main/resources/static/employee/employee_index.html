@@ -3,19 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <title>智能工具柜 - 员工借还主界面</title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="css/employee_index.css">
 </head>
 <body>
-<!-- 顶部导航 -->
 <div class="header">
     <div class="logo">智能工具柜管理系统</div>
     <div class="user-info">
         <span>当前登录：张三（工号：001）</span>
-        <a href="../index.html">退出登录</a>
+        <a href="javascript:void(0)" onclick="logout()">退出登录</a>
     </div>
 </div>
 
-<!-- 核心操作区 -->
 <div class="card">
     <h2>工具借还</h2>
     <div style="display: flex; gap: 20px; margin-top: 20px;">
@@ -24,7 +23,6 @@
     </div>
 </div>
 
-<!-- 最近借还记录 -->
 <div class="card">
     <h2>最近借还记录</h2>
     <table class="table">
@@ -58,12 +56,27 @@
     </div>
 </div>
 
-<!-- 系统公告 -->
 <div class="card">
     <h2>系统公告</h2>
     <div class="alert alert-info">
         温馨提示：今日14:00-15:00系统将进行维护，期间暂停工具借还服务，敬请谅解！
     </div>
 </div>
+<script src="../js/constants.js"></script>
+<script src="../js/auth.js"></script>
+<script src="js/employee_index.js"></script>
+<script>
+if (!initPageAuth(SESSION_TIMEOUT)) {
+    // Already redirected to login
+} else {
+    const userInfo = getUserInfo();
+    if (userInfo) {
+        const spanEl = document.querySelector('.user-info span');
+        if (spanEl) {
+            spanEl.textContent = '当前登录：' + (userInfo.userName || '未知') + '（工号：' + (userInfo.userId || '') + '）';
+        }
+    }
+}
+</script>
 </body>
 </html>

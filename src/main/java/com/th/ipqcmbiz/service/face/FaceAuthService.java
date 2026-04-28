@@ -1,15 +1,10 @@
 package com.th.ipqcmbiz.service.face;
 
 // ========== 统一返回结果格式 ==========
-import com.th.ipqcmbiz.entity.common.Result;
-// ========== 拍照录入返回VO ==========
-import com.th.ipqcmbiz.entity.vo.FaceEnrollVO;
-// ========== 人脸识别返回VO ==========
-import com.th.ipqcmbiz.entity.vo.FaceRecognizeVO;
-// ========== 视频录入返回VO ==========
-import com.th.ipqcmbiz.entity.vo.FaceVideoEnrollVO;
 
-// ========== Java AWT图片格式（用于特征提取） ==========
+import com.th.ipqcmbiz.entity.common.Result;
+import com.th.ipqcmbiz.entity.vo.FaceEnrollVO;
+
 import java.awt.image.BufferedImage;
 
 /**
@@ -99,43 +94,6 @@ public interface FaceAuthService {
      */
     void cancelEnroll(String enrollId);
 
-
-    // ==================== 人脸识别登录 ====================
-
-    /**
-     * 人脸识别登录
-     *
-     * 识别流程：
-     * 1. 从视频流获取当前帧
-     * 2. 使用YuNet检测人脸
-     * 3. 使用SFace提取128维特征向量
-     * 4. 从数据库加载该用户的所有人脸特征（或所有用户）
-     * 5. 计算余弦相似度，找出最相似的人脸
-     * 6. 如果相似度超过阈值(默认0.4)，则认为匹配成功
-     *
-     * 阈值说明：
-     * - 阈值越低，越容易匹配成功（误识率高）
-     * - 阈值越高，越严格（误识率低，但可能拒识）
-     * - 默认0.4是经过测试的平衡值
-     *
-     * @param userId 用户ID（可选）
-     *              - 如果指定，则只与该用户的人脸比对
-     *              - 如果为空，则与所有已录入用户比对（用于不知道用户身份的登录场景）
-     * @return FaceRecognizeVO包含匹配结果、相似度、用户信息等
-     */
-    FaceRecognizeVO recognize(String userId);
-
-    /**
-     * 获取录入状态
-     *
-     * 查询指定用户的录入情况：
-     * 1. 查询USER_INFO表获取faceEnrolled标志
-     * 2. 查询FACE_FEATURE表统计该用户已录入的人脸数量
-     *
-     * @param userId 用户ID
-     * @return FaceEnrollVO包含录入状态信息
-     */
-    FaceEnrollVO getEnrollStatus(String userId);
 
 
     // ==================== 核心算法（检测/识别/质量评估） ====================
@@ -239,131 +197,14 @@ public interface FaceAuthService {
     FaceEnrollVO captureForEnrollWithImage(String enrollId, String userId, String imageData);
 
     /**
-     * 使用上传的图片进行人脸识别
+     * 删除指定用户的人脸数据（用于重新采集）
      *
-     * 与recognize的区别：
-     * - recognize：从后端视频流抓帧进行识别
-     * - 本方法：接收前端Base64编码的图片数据进行识别
-     *
-     * 适用场景：
-     * - 前端自己截图后上传识别
-     * - 适用于测试或离线图片识别
-     *
-     * 处理流程：
-     * 1. 解码Base64图片数据
-     * 2. detectAndCropFace检测人脸
-     * 3. extractFeature提取特征
-     * 4. 从数据库加载人脸特征
-     * 5. 计算余弦相似度找最优匹配
-     *
-     * @param userId 用户ID（可选），指定时只比对该用户的特征
-     * @param imageData Base64编码的图片数据
-     * @return FaceRecognizeVO包含识别结果和相似度
-     */
-    FaceRecognizeVO recognizeWithImage(String userId, String imageData);
-
-
-    // ==================== 视频录入模式（自动连续帧） ====================
-
-    /**
-     * 开始视频人脸录入
-     *
-     * 视频录入 vs 拍照录入：
-     * - 拍照录入：用户手动一张一张拍照，需要用户配合
-     * - 视频录入：用户录制10秒视频，系统自动从视频中提取多张人脸
-     *
-     * 视频录入优势：
-     * 1. 用户体验更好：只需录制10秒，不用反复调整姿势
-     * 2. 人脸多样性：视频中可能有轻微角度变化
-     * 3. 自动筛选：系统自动选取质量最高的帧
-     *
-     * 前端流程：
-     * 1. 前端调用本接口获取enrollId
-     * 2. 开始10秒倒计时录制
-     * 3. 每200ms截取一帧，调用addVideoFrame上传
-     * 4. 录制结束后调用completeVideoEnroll完成
+     * 删除流程：
+     * 1. 从FACE_FEATURE表删除该用户的所有人脸数据
+     * 2. 更新USER_INFO表的faceRegistered字段为'N'
      *
      * @param userId 用户ID
-     * @return 视频录入会话ID（enrollId）
+     * @return Result操作结果
      */
-    String startVideoEnroll(String userId);
-
-    /**
-     * 添加视频帧进行人脸录入
-     *
-     * 核心处理流程：
-     * 1. 接收前端发送的Base64图片数据
-     * 2. 解码为BufferedImage
-     * 3. detectAndCropFace检测人脸
-     *    - 如果未检测到人脸，返回detected=false
-     * 4. assessQuality评估质量
-     *    - 如果质量<阈值(0.5)，返回detected=false
-     * 5. extractFeature提取128维特征向量
-     * 6. 存入VideoEnrollSession会话
-     *
-     * 帧过滤策略：
-     * - 帧间隔：前端每200ms发送一帧
-     * - 有效帧：检测到人脸且质量>=0.5
-     * - 无效帧：未检测到人脸或质量不达标，不存入session
-     *
-     * 关于frameIndex：
-     * - 前端递增发送，从0开始
-     * - 主要用于调试和日志追踪
-     * - 后端不依赖此序号保证顺序（依赖TCP传输顺序）
-     *
-     * @param enrollId 视频录入会话ID
-     * @param userId 用户ID（用于校验）
-     * @param frameIndex 帧序号（前端的递增序号）
-     * @param imageData Base64编码的帧图片
-     * @return FaceVideoEnrollVO包含处理结果和当前检测到的人脸数
-     */
-    FaceVideoEnrollVO addVideoFrame(String enrollId, String userId, int frameIndex, String imageData);
-
-    /**
-     * 完成视频人脸录入
-     *
-     * 完成流程：
-     * 1. 从会话map中移除VideoEnrollSession
-     * 2. 检查是否检测到足够的人脸（至少8张）
-     * 3. 按质量降序排序所有检测到的人脸
-     * 4. 选取质量最高的8张
-     * 5. 为每张人脸创建FaceFeatureDO存入数据库
-     * 6. 更新USER_INFO表的faceEnrolled="1"
-     *
-     * 质量筛选算法：
-     * - 将所有帧按quality降序排列
-     * - 取前8张（如检测到10张，取质量最好的8张）
-     * - 确保最终存入的都是高质量人脸
-     *
-     * 存储内容：
-     * - 128维特征向量（用于识别比对）
-     * - 质量分数（记录该人脸的质量）
-     * - faceIndex: 1-8（质量最好的为1，以此类推）
-     *
-     * 注意：与拍照模式不同，视频模式不存储人脸图片（faceImage=null）
-     * 原因：视频录入的人脸是快速连续的帧，存储价值不大
-     *
-     * @param enrollId 视频录入会话ID
-     * @return Result成功时message说明共检测到几张、存入几张
-     */
-    Result completeVideoEnroll(String enrollId);
-
-    // ==================== 视频录制模式（后端FFmpeg录制） ====================
-
-    /**
-     * 录制视频人脸录入
-     *
-     * 后端使用FFmpeg从RTSP流录制5秒视频，然后处理视频中的人脸
-     *
-     * 流程：
-     * 1. 使用FFmpeg录制RTSP流5秒视频
-     * 2. 从视频中提取帧，检测人脸
-     * 3. 质量排序，选取最好的8张
-     * 4. 存入FACE_FEATURE表
-     * 5. 更新用户faceEnrolled状态
-     *
-     * @param userId 用户ID
-     * @return 录制结果，包含检测到的人脸数量、视频路径等
-     */
-    Result recordVideoEnroll(String userId);
+    Result deleteFaceData(String userId);
 }

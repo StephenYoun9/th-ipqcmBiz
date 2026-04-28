@@ -1,0 +1,1 @@
+/* personal_center.html JS - currently static, no dynamic functionality */

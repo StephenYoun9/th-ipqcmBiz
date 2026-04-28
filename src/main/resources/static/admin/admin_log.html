@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <title>智能工具柜 - 日志审计</title>
-  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/common.css">
+  <link rel="stylesheet" href="css/admin_log.css">
 </head>
 <body>
-<!-- 顶部导航 -->
 <div class="header">
   <div class="logo">智能工具柜管理系统</div>
   <div class="user-info">
     <a href="admin_index.html" class="btn btn-default">返回控制台</a>
-    <span>当前登录：管理员（admin）</span>
+     <a class="btn btn-danger" href="javascript:void(0)" onclick="logout()">退出登录</a>
+     <span>当前登录：管理员（admin）</span>
   </div>
 </div>
 
-<!-- 查询条件区 -->
 <div class="card">
   <h2>日志审计</h2>
   <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;">
@@ -50,7 +50,6 @@
   </div>
 </div>
 
-<!-- 日志列表 -->
 <div class="card">
   <table class="table">
     <thead>
@@ -82,12 +81,10 @@
       <td>2026-03-05 11:20:10</td>
       <td>还工具</td>
       <td>归还工具影像识别不匹配，操作失败</td>
-      <td>⚠️ 异常</td>
+      <td>&#9888; 异常</td>
     </tr>
     </tbody>
   </table>
-
-  <!-- 分页 -->
   <div style="margin-top: 15px; display: flex; justify-content: center; gap: 10px;">
     <button class="btn btn-default">上一页</button>
     <span>第1页 / 共10页</span>
@@ -95,11 +92,26 @@
   </div>
 </div>
 
-<!-- 异常告警提示 -->
 <div class="card">
   <div class="alert alert-danger">
     发现1条异常日志：李四（002）还工具时影像识别不匹配，请及时核查！
   </div>
 </div>
+<script src="../js/constants.js"></script>
+<script src="../js/auth.js"></script>
+<script src="js/admin_log.js"></script>
+<script>
+if (!initPageAuth(SESSION_TIMEOUT)) {
+    // Already redirected to login
+} else {
+    const userInfo = getUserInfo();
+    if (userInfo) {
+        const spanEl = document.querySelector('.user-info span');
+        if (spanEl) {
+            spanEl.textContent = '当前登录：' + (userInfo.userName || '未知') + '（' + (userInfo.userId || '') + '）';
+        }
+    }
+}
+</script>
 </body>
 </html>

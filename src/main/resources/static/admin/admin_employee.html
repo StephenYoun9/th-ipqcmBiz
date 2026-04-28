@@ -1,195 +1,108 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-    <head>
-        <meta charset="UTF-8">
-        <title>智能工具柜 - 员工管理</title>
-        <link href="../css/style.css" rel="stylesheet">
-    </head>
-    <body>
-        <!-- 顶部导航 -->
-        <div class="header">
-            <div class="logo">智能工具柜管理系统</div>
-            <div class="user-info">
-                <a class="btn btn-default" href="admin_index.html">返回控制台</a>
-                <span>当前登录：管理员（admin）</span>
+<head>
+    <meta charset="UTF-8">
+    <title>智能工具柜 - 员工管理</title>
+    <link href="../css/common.css" rel="stylesheet">
+</head>
+<body>
+<div class="header">
+    <div class="logo">智能工具柜管理系统</div>
+    <div class="user-info">
+        <a class="btn btn-default" href="admin_index.html">返回控制台</a>
+        <a class="btn btn-danger" href="javascript:void(0)" onclick="logout()">退出登录</a>
+    </div>
+</div>
+
+<div class="card">
+    <h2>员工管理</h2>
+    <div style="display: flex; gap: 10px; margin-top: 10px; align-items: center;">
+        <button class="btn btn-primary" onclick="openAddEmployeePage()">新增员工</button>
+        <button class="btn btn-default">批量导入</button>
+        <div style="flex: 1; display: flex; align-items: center;">
+            <input class="form-control" id="searchInput" placeholder="按工号/姓名搜索" type="text" style="height: 38px;">
+        </div>
+        <button class="btn btn-primary" onclick="loadEmployeeList()">查询</button>
+    </div>
+</div>
+
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>姓名</th>
+                <th>工号</th>
+                <th>权限</th>
+                <th>状态</th>
+                <th>人脸录入状态</th>
+                <th>指纹录入状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+         <tbody id="employeeTableBody">
+            <tr><td colspan="7" style="text-align: center;">加载中...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- 编辑员工弹窗 -->
+<div class="modal" id="editModal">
+    <div class="modal-content" style="min-width: 450px;">
+        <div class="modal-header">
+            <h3>编辑员工</h3>
+            <span class="modal-close" onclick="closeEditModal()">&times;</span>
+        </div>
+        <div style="padding: 10px 0;">
+            <input type="hidden" id="editUserId">
+            <div class="form-group">
+                <label>姓名</label>
+                <input class="form-control" id="editUserName" type="text">
+            </div>
+            <div class="form-group">
+                <label>工号</label>
+                <input class="form-control" id="editUserIdDisplay" type="text" disabled>
+            </div>
+            <div class="form-group">
+                <label>新密码（留空则不修改）</label>
+                <input class="form-control" id="editPassword" type="password" placeholder="请输入新密码">
+            </div>
+            <div class="form-group">
+                <label>权限</label>
+                <select class="form-control" id="editUserRole">
+                    <option value="1">普通员工</option>
+                    <option value="0">管理员</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>状态</label>
+                <select class="form-control" id="editStatus">
+                    <option value="1">正常</option>
+                    <option value="0">禁用</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button class="btn btn-default" onclick="closeEditModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveEditEmployee()">保存</button>
             </div>
         </div>
-        
-        <!-- 操作工具栏 -->
-        <div class="card">
-            <h2>员工管理</h2>
-            <div style="display: flex; gap: 10px; margin-top: 10px; align-items: center;">
-                <!-- 修改新增按钮点击事件 -->
-                <button class="btn btn-primary" onclick="openAddEmployeePage()">新增员工</button>
-                <button class="btn btn-default">批量导入</button>
-                <div class="form-group" style="flex: 1;">
-                    <input class="form-control" id="searchInput" placeholder="按工号/姓名搜索" type="text">
-                </div>
-                <button class="btn btn-primary" onclick="loadEmployeeList()">查询</button>
-            </div>
-        </div>
-        
-        <!-- 员工列表 -->
-        <div class="card">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>姓名</th>
-                        <th>工号</th>
-                        <th>权限</th>
-                        <th>状态</th>
-                        <th>人脸录入状态</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody id="employeeTableBody">
-                <!-- 动态渲染的员工数据 -->
-                <tr>
-                    <td colspan="6" style="text-align: center;">加载中...</td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-        
-        <script>
+    </div>
+</div>
 
-            // 页面加载完成后立即加载员工列表
-            window.onload = function () {
-                loadEmployeeList();
-                // 监听窗口焦点变化，切回员工页面时自动刷新
-                window.addEventListener('focus', function () {
-                    loadEmployeeList();
-                });
-
-                // 读取人脸采集成功的员工工号，做提示
-                const recentFaceEmpNo = sessionStorage.getItem('recentFaceRegisterEmpNo');
-                if (recentFaceEmpNo) {
-                    alert(`工号${recentFaceEmpNo}的员工人脸录入成功！`);
-                    sessionStorage.removeItem('recentFaceRegisterEmpNo'); // 清空提示
-                }
-            }
-
-            // 打开新增员工页面
-            function openAddEmployeePage() {
-                // 清除session
-                sessionStorage.removeItem('tempEmployeeData');
-                sessionStorage.removeItem('faceRegisterStatus');
-                window.open('add_employee.html', '_blank');
-            }
-
-            // 加载员工列表
-            function loadEmployeeList() {
-                const tableBody = document.getElementById('employeeTableBody');
-                tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">加载中...</td></tr>';
-
-                const searchKeyword = document.getElementById('searchInput').value.trim();
-                const requestParams = new URLSearchParams();
-                if (searchKeyword) {
-                    requestParams.append('keyword', searchKeyword);
-                }
-
-                fetch(`http://localhost:3030/user/query-user-list-by-id-or-name?${requestParams.toString()}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('网络请求失败');
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.code === 200 && Array.isArray(data.data)) {
-                            renderEmployeeTable(data.data);
-                        } else {
-                            tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">暂无员工数据</td></tr>';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('加载员工列表失败：', error);
-                        tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">加载失败，请刷新重试</td></tr>';
-                    });
-            }
-
-            // 渲染员工列表表格
-            function renderEmployeeTable(employeeList) {
-                const tableBody = document.getElementById('employeeTableBody');
-                if (employeeList.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">暂无员工数据</td></tr>';
-                    return;
-                }
-
-                let tableHtml = '';
-                employeeList.forEach(emp => {
-                    const roleText = emp.userRole === 0 ? '管理员' : '普通员工';
-                    const statusText = emp.status === 1 ? '正常' : '禁用';
-                    const faceStatusHtml = emp.faceRegistered
-                        ? '<span class="status-success">已录入</span>'
-                        : '<span class="status-warning">未录入</span>';
-
-                    tableHtml += `
-                    <tr>
-                        <td>${emp.userName || '-'}</td>
-                        <td>${emp.userId || '-'}</td>
-                        <td>${roleText}</td>
-                        <td>${statusText}</td>
-                        <td>${faceStatusHtml}</td>
-                        <td>
-                            <button class="btn btn-default btn-sm" onclick="editEmployee('${emp.userId}')">编辑</button>
-                            <button class="btn btn-danger btn-sm" onclick="deleteEmployee('${emp.userId}')">删除</button>
-                            <button class="btn btn-primary btn-sm" onclick="gotoFaceRegisterByEmp('${emp.userName}', '${emp.userId}')">录入生物特征</button>
-                        </td>
-                    </tr>
-                `;
-                });
-
-                tableBody.innerHTML = tableHtml;
-            }
-
-            // 从列表跳转到人脸录入
-            function gotoFaceRegisterByEmp(name, no) {
-                if (!name || !no) {
-                    alert('员工信息异常，无法录入人脸');
-                    return;
-                }
-                // 存入sessionStorage（标记来源为列表页）
-                sessionStorage.setItem('tempEmployeeData', JSON.stringify({
-                    name, no, fromAddPage: false
-                }));
-                // 清空旧的录入状态
-                sessionStorage.removeItem('faceRegisterStatus');
-
-                window.location.href = `../face/register_face.html`;
-            }
-
-            // 编辑员工（预留方法）
-            function editEmployee(empNo) {
-                alert(`编辑员工：${empNo}，请完善编辑逻辑`);
-            }
-
-            // 删除员工（保留原有逻辑）
-            function deleteEmployee(empNo) {
-                if (confirm(`确定要删除工号为${empNo}的员工吗？`)) {
-                    fetch(`http://localhost:3030/user/delete?no=${empNo}`, {
-                        method: 'DELETE'
-                    })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.code === 200) {
-                                alert('删除成功');
-                                loadEmployeeList();
-                            } else {
-                                alert('删除失败：' + data.message);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('删除失败：', error);
-                            alert('删除失败，请稍后重试');
-                        });
-                }
-            }
-        </script>
-    </body>
+<script src="../js/constants.js"></script>
+<script src="../js/auth.js"></script>
+<script src="js/admin_employee.js"></script>
+<script>
+if (!initPageAuth(SESSION_TIMEOUT)) {
+    // Already redirected to login
+} else {
+    const userInfo = getUserInfo();
+    if (userInfo) {
+        const spanEl = document.querySelector('.user-info span');
+        if (spanEl) {
+            spanEl.textContent = '当前登录：' + (userInfo.userName || '未知') + '（' + (userInfo.userId || '') + '）';
+        }
+    }
+}
+</script>
+</body>
 </html>

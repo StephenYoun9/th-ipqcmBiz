@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <title>智能工具柜 - 借工具</title>
-  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/common.css">
+  <link rel="stylesheet" href="css/borrow_tool.css">
 </head>
 <body>
-<!-- 顶部导航 -->
 <div class="header">
   <div class="logo">智能工具柜管理系统</div>
   <div class="user-info">
     <a href="../employee/employee_index.html" class="btn btn-default">返回主界面</a>
-    <span>当前登录：张三（工号：001）</span>
+     <a class="btn btn-danger" href="javascript:void(0)" onclick="logout()">退出登录</a>
+     <span>当前登录：张三（工号：001）</span>
   </div>
 </div>
 
-<!-- 筛选区 -->
 <div class="card">
   <h2>借工具</h2>
   <div style="display: flex; gap: 10px; margin-top: 10px;">
@@ -33,7 +33,6 @@
   </div>
 </div>
 
-<!-- 工具列表 -->
 <div class="card">
   <h3>可借工具列表</h3>
   <table class="table">
@@ -75,27 +74,27 @@
   </div>
 </div>
 
-<!-- 操作提示区 -->
 <div class="card">
   <h3>操作提示</h3>
   <div class="alert alert-info" id="tips">
     请选择要借取的工具，确认后对应柜门将自动开启，请在3分钟内取出工具！
   </div>
 </div>
-
+<script src="../js/constants.js"></script>
+<script src="../js/auth.js"></script>
+<script src="js/borrow_tool.js"></script>
 <script>
-  // 模拟借取操作
-  document.getElementById('borrowBtn').addEventListener('click', function() {
-    const selectedTool = document.querySelector('input[name="tool"]:checked');
-    if (!selectedTool) {
-      document.getElementById('tips').className = 'alert alert-danger';
-      document.getElementById('tips').innerText = '请先选择要借取的工具！';
-      return;
+if (!initPageAuth(SESSION_TIMEOUT)) {
+    // Already redirected to login
+} else {
+    const userInfo = getUserInfo();
+    if (userInfo) {
+        const spanEl = document.querySelector('.user-info span');
+        if (spanEl) {
+            spanEl.textContent = '当前登录：' + (userInfo.userName || '未知') + '（工号：' + (userInfo.userId || '') + '）';
+        }
     }
-
-    document.getElementById('tips').className = 'alert alert-success';
-    document.getElementById('tips').innerText = `已选择工具：${selectedTool.value}，对应柜门已开启，请取出工具，系统将自动采集影像确认！`;
-  });
+}
 </script>
 </body>
 </html>

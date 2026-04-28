@@ -2,14 +2,14 @@ package com.th.ipqcmbiz.controller.face;
 
 import com.th.ipqcmbiz.entity.common.Result;
 import com.th.ipqcmbiz.entity.vo.FaceEnrollVO;
-import com.th.ipqcmbiz.entity.vo.FaceRecognizeVO;
-import com.th.ipqcmbiz.entity.vo.FaceVideoEnrollVO;
 import com.th.ipqcmbiz.service.face.FaceAuthService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-// ========== 请求参数Map ==========
 import java.util.Map;
 
 
@@ -24,25 +24,6 @@ public class FaceAuthController {
 
     // ==================== 状态查询 ====================
 
-    /**
-     * 获取用户人脸录入状态
-     *
-     * 查询指定用户是否已完成人脸录入
-     *
-     * @param userId 用户ID
-     * @return FaceEnrollVO包含录入状态、已录入数量等
-     *
-     * 接口: GET /face/status/{userId}
-     */
-    @GetMapping("/status/{userId}")
-    public Result getStatus(@PathVariable String userId) {
-        // 调用服务获取录入状态
-        FaceEnrollVO status = faceAuthService.getEnrollStatus(userId);
-        return Result.success(status);
-    }
-
-
-    // ==================== 拍照录入模式（手动单张） ====================
 
     /**
      * 开始人脸录入（拍照模式）
@@ -57,7 +38,7 @@ public class FaceAuthController {
      * 请求体: {"userId": "xxx", "faceCount": 8}
      */
     @PostMapping("/enroll/start")
-    public Result startEnroll(@RequestBody Map<String, Object> params) {
+    public Result<FaceEnrollVO> startEnroll(@RequestBody Map<String, Object> params) {
         // 从请求体获取userId
         String userId = (String) params.get("userId");
         // 从请求体获取faceCount（可选，默认8）
@@ -98,7 +79,7 @@ public class FaceAuthController {
      * 请求体: {"enrollId": "xxx", "userId": "xxx"}
      */
     @PostMapping("/enroll/capture")
-    public Result capture(@RequestBody Map<String, Object> params) {
+    public Result<FaceEnrollVO> capture(@RequestBody Map<String, Object> params) {
         // 获取enrollId和userId
         String enrollId = (String) params.get("enrollId");
         String userId = (String) params.get("userId");
@@ -150,7 +131,7 @@ public class FaceAuthController {
      * 请求体: {"enrollId": "xxx"}
      */
     @PostMapping("/enroll/cancel")
-    public Result cancel(@RequestBody Map<String, Object> params) {
+    public Result<Void> cancel(@RequestBody Map<String, Object> params) {
         String enrollId = (String) params.get("enrollId");
 
         // enrollId为null时静默忽略（可能用户已取消）
@@ -160,31 +141,6 @@ public class FaceAuthController {
 
         return Result.success("已取消");
     }
-
-
-    // ==================== 人脸识别登录 ====================
-
-    /**
-     * 人脸识别登录
-     *
-     * 从视频流获取当前帧，识别人脸并匹配数据库
-     *
-     * @param params 包含userId（可选）
-     * @return FaceRecognizeVO包含识别结果、相似度、用户信息等
-     *
-     * 接口: POST /face/recognize
-     * 请求体: {"userId": "xxx"} 或 {"userId": ""}
-     */
-    @PostMapping("/recognize")
-    public Result recognize(@RequestBody Map<String, Object> params) {
-        // userId为可选参数
-        String userId = (String) params.get("userId");
-
-        // 调用服务进行识别
-        FaceRecognizeVO vo = faceAuthService.recognize(userId);
-        return Result.success(vo);
-    }
-
 
     // ==================== 图片模式（前端上传） ====================
 
@@ -206,7 +162,7 @@ public class FaceAuthController {
      * 请求体: {"enrollId": "xxx", "userId": "xxx", "image": "base64..."}
      */
     @PostMapping("/enroll/capture/image")
-    public Result captureWithImage(@RequestBody Map<String, Object> params) {
+    public Result<FaceEnrollVO> captureWithImage(@RequestBody Map<String, Object> params) {
         // 获取三个必要参数
         String enrollId = (String) params.get("enrollId");
         String userId = (String) params.get("userId");
@@ -223,177 +179,20 @@ public class FaceAuthController {
     }
 
     /**
-     * 使用上传的图片进行人脸识别
-     *
-     * 与recognize的区别：
-     * - recognize: 后端从视频流抓帧
-     * - 本方法: 接收前端Base64编码的图片数据
-     *
-     * @param params 包含userId（可选）、image
-     * @return FaceRecognizeVO包含识别结果
-     *
-     * 接口: POST /face/recognize/image
-     * 请求体: {"userId": "xxx", "image": "base64..."}
-     */
-    @PostMapping("/recognize/image")
-    public Result recognizeWithImage(@RequestBody Map<String, Object> params) {
-        // userId为可选参数
-        String userId = (String) params.get("userId");
-        // image为必选参数
-        String imageData = (String) params.get("image");
-
-        // 图片数据不能为空
-        if (imageData == null) {
-            return Result.error(400, "图片不能为空");
-        }
-
-        // 调用服务处理识别
-        FaceRecognizeVO vo = faceAuthService.recognizeWithImage(userId, imageData);
-        return Result.success(vo);
-    }
-
-
-    // ==================== 视频录入模式（自动连续帧） ====================
-
-    /**
-     * 开始视频人脸录入
-     *
-     * 创建视频录入会话，返回enrollId
-     * 前端开始10秒录制后，每200ms调用addVideoFrame上传一帧
-     *
-     * @param params 包含userId
-     * @return enrollId会话标识
-     *
-     * 接口: POST /face/enroll/video/start
-     * 请求体: {"userId": "xxx"}
-     *
-     * 前端调用流程：
-     * 1. 调用本接口获取enrollId
-     * 2. 开始10秒倒计时
-     * 3. 每200ms: canvas截图 → Base64编码 → addVideoFrame
-     * 4. 10秒后自动停止
-     * 5. 调用completeVideoEnroll完成录入
-     */
-    @PostMapping("/enroll/video/start")
-    public Result startVideoEnroll(@RequestBody Map<String, Object> params) {
-        String userId = (String) params.get("userId");
-
-        // userId必填
-        if (userId == null || userId.isEmpty()) {
-            return Result.error(400, "用户ID不能为空");
-        }
-
-        // 调用服务创建视频录入会话
-        String enrollId = faceAuthService.startVideoEnroll(userId);
-        return Result.success(enrollId);
-    }
-
-    /**
-     * 添加视频帧进行人脸录入
-     *
-     * 每收到一帧后：
-     * 1. 检测人脸（YuNet）
-     * 2. 评估质量
-     * 3. 如果质量达标则提取特征并存储
-     *
-     * @param params 包含enrollId、userId、frameIndex、image
-     * @return FaceVideoEnrollVO包含处理结果
-     *
-     * 接口: POST /face/enroll/video/frame
-     * 请求体: {"enrollId": "xxx", "userId": "xxx", "frameIndex": 0, "image": "base64..."}
-     *
-     * 返回示例：
-     * {
-     *   "enrollId": "xxx",
-     *   "userId": "xxx",
-     *   "frameIndex": 5,
-     *   "totalFrames": 5,
-     *   "detectedFaces": 3,
-     *   "quality": 0.82,
-     *   "detected": true,
-     *   "message": "已检测到人脸，质量: 82%"
-     * }
-     */
-    @PostMapping("/enroll/video/frame")
-    public Result addVideoFrame(@RequestBody Map<String, Object> params) {
-        // 获取所有必要参数
-        String enrollId = (String) params.get("enrollId");
-        String userId = (String) params.get("userId");
-        Integer frameIndex = (Integer) params.get("frameIndex");
-        String imageData = (String) params.get("image");
-
-        // 参数完整性校验
-        if (enrollId == null || userId == null || frameIndex == null || imageData == null) {
-            return Result.error(400, "参数不完整");
-        }
-
-        // 调用服务处理视频帧
-        FaceVideoEnrollVO vo = faceAuthService.addVideoFrame(enrollId, userId, frameIndex, imageData);
-        return Result.success(vo);
-    }
-
-    /**
-     * 完成视频人脸录入
-     *
-     * 结束视频录入会话：
-     * 1. 验证检测到的人脸数量（至少8张）
-     * 2. 按质量排序，选取最好的8张
-     * 3. 存入FACE_FEATURE表
-     * 4. 更新用户状态
-     *
-     * @param params 包含enrollId
-     * @return Result操作结果
-     *
-     * 接口: POST /face/enroll/video/complete
-     * 请求体: {"enrollId": "xxx"}
-     *
-     * 成功返回示例：
-     * {
-     *   "code": 200,
-     *   "message": "人脸录入完成，共检测到 25 张，选取质量最高的 8 张存入数据库"
-     * }
-     *
-     * 失败返回示例：
-     * {
-     *   "code": 400,
-     *   "message": "检测到的人脸不足8张，请重试。当前检测到: 5 张"
-     * }
-     */
-    @PostMapping("/enroll/video/complete")
-    public Result completeVideoEnroll(@RequestBody Map<String, Object> params) {
-        String enrollId = (String) params.get("enrollId");
-
-        // enrollId必填
-        if (enrollId == null) {
-            return Result.error(400, "enrollId不能为空");
-        }
-
-        // 调用服务完成视频录入
-        return faceAuthService.completeVideoEnroll(enrollId);
-    }
-
-    // ==================== 视频录制模式（后端录制） ====================
-
-    /**
-     * 录制视频人脸录入
-     *
-     * 后端使用FFmpeg从RTSP流录制5秒视频，然后处理视频中的人脸
+     * 删除指定用户的人脸数据（用于重新采集）
      *
      * @param params 包含userId
      * @return Result操作结果
      *
-     * 接口: POST /face/enroll/video/record
+     * 接口: POST /face/delete
      * 请求体: {"userId": "xxx"}
      */
-    @PostMapping("/enroll/video/record")
-    public Result recordVideo(@RequestBody Map<String, Object> params) {
+    @PostMapping("/delete")
+    public Result deleteFace(@RequestBody Map<String, Object> params) {
         String userId = (String) params.get("userId");
-
         if (userId == null || userId.isEmpty()) {
             return Result.error(400, "用户ID不能为空");
         }
-
-        log.info("收到视频录制请求: userId={}", userId);
-        return faceAuthService.recordVideoEnroll(userId);
+        return faceAuthService.deleteFaceData(userId);
     }
 }

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.th.ipqcmbiz.mapper.dashboard.DashboardMapper">
+
+    <resultMap id="ExceptionLogResultMap" type="com.th.ipqcmbiz.entity.po.ExceptionLogDO">
+        <id property="id" column="ID"/>
+        <result property="exceptionType" column="EXCEPTION_TYPE"/>
+        <result property="toolCode" column="TOOL_CODE"/>
+        <result property="userId" column="USER_ID"/>
+        <result property="description" column="DESCRIPTION"/>
+        <result property="status" column="STATUS"/>
+        <result property="createTime" column="CREATE_TIME"/>
+        <result property="handleTime" column="HANDLE_TIME"/>
+        <result property="handler" column="HANDLER"/>
+    </resultMap>
+
+    <select id="countEmployee" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM USER_INFO WHERE Status = 1
+    </select>
+
+    <select id="countTool" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM TOOL_INFO
+    </select>
+
+    <select id="countTodayBorrow" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM BORROW_RECORD
+        WHERE TRUNC(BORROW_TIME) = TRUNC(SYSDATE)
+    </select>
+
+    <select id="countPendingException" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM EXCEPTION_LOG WHERE STATUS = 'pending'
+    </select>
+
+    <select id="getPendingAlerts" resultMap="ExceptionLogResultMap">
+        SELECT * FROM EXCEPTION_LOG
+        WHERE STATUS = 'pending'
+        ORDER BY CREATE_TIME DESC
+        FETCH FIRST 10 ROWS ONLY
+    </select>
+
+</mapper>

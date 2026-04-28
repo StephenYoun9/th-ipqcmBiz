@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.th.ipqcmbiz.mapper.LoginTokenMapper">
+
+    <resultMap id="loginTokenResultMap" type="com.th.ipqcmbiz.entity.po.LoginTokenDO">
+        <id property="id" javaType="Long" column="ID" jdbcType="DECIMAL"/>
+        <result property="userId" javaType="String" column="USER_ID" jdbcType="VARCHAR"/>
+        <result property="token" javaType="String" column="TOKEN" jdbcType="VARCHAR"/>
+        <result property="lastActivity" javaType="java.util.Date" column="LAST_ACTIVITY" jdbcType="DATE"/>
+        <result property="createTime" javaType="java.util.Date" column="CREATE_TIME" jdbcType="DATE"/>
+        <result property="expireTime" javaType="java.util.Date" column="EXPIRE_TIME" jdbcType="DATE"/>
+    </resultMap>
+
+    <select id="selectByToken" resultMap="loginTokenResultMap">
+        SELECT ID, USER_ID, TOKEN, LAST_ACTIVITY, CREATE_TIME, EXPIRE_TIME
+        FROM LOGIN_TOKEN
+        WHERE TOKEN = #{token}
+    </select>
+
+    <select id="selectByUserId" resultMap="loginTokenResultMap">
+        SELECT ID, USER_ID, TOKEN, LAST_ACTIVITY, CREATE_TIME, EXPIRE_TIME
+        FROM LOGIN_TOKEN
+        WHERE USER_ID = #{userId}
+        ORDER BY CREATE_TIME DESC
+        FETCH FIRST 1 ROWS ONLY
+    </select>
+
+    <insert id="insert">
+        <selectKey keyProperty="id" resultType="Long" order="BEFORE">
+            SELECT LOGIN_TOKEN_SEQ.NEXTVAL FROM DUAL
+        </selectKey>
+        INSERT INTO LOGIN_TOKEN (ID, USER_ID, TOKEN, LAST_ACTIVITY, CREATE_TIME, EXPIRE_TIME)
+        VALUES (#{id}, #{userId}, #{token}, #{lastActivity}, #{createTime}, #{expireTime})
+    </insert>
+
+    <update id="updateLastActivity">
+        UPDATE LOGIN_TOKEN
+        SET LAST_ACTIVITY = #{lastActivity}
+        WHERE TOKEN = #{token}
+    </update>
+
+    <delete id="deleteByToken">
+        DELETE FROM LOGIN_TOKEN WHERE TOKEN = #{token}
+    </delete>
+
+    <delete id="deleteByUserId">
+        DELETE FROM LOGIN_TOKEN WHERE USER_ID = #{userId}
+    </delete>
+
+</mapper>

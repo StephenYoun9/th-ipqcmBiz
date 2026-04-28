@@ -1,62 +1,48 @@
 package com.th.ipqcmbiz.service.face;
 
 import com.th.ipqcmbiz.entity.common.Result;
-
-import java.awt.image.BufferedImage;
+import com.th.ipqcmbiz.entity.vo.FaceFrameInfo;
 
 /**
- * @ClassName FaceVideoService
- * @Description 类功能描述
- * @Author 杨兴明
- * @Date 2026/4/14 13:27
- * @Version 1.0
+ * 摄像头视频服务接口
+ * 使用本地摄像头（VideoCapture）获取视频流
  */
 public interface FaceVideoService {
 
     /**
-     * 按需获取一帧（同步阻塞）
-     * @return JPEG字节数组
-     */
-    byte[] grabFrame();
-
-    /**
      * 获取最新JPEG视频帧
+     * 首次调用时自动启动摄像头
      * @return JPEG字节数组
      */
     byte[] getLatestJpeg();
 
     /**
-     * 获取最新视频帧
+     * 获取最新帧及人脸检测信息
+     * @return 帧信息（含Base64图片和人脸坐标）
      */
-    BufferedImage getFrame();
-
-    /**
-     * 获取预压缩的JPEG视频帧
-     */
-    byte[] getLatestJpegFrame();
-
-    /**
-     * 获取最新图片格式的视频帧
-     */
-    BufferedImage getLatestFrameImage();
+    FaceFrameInfo getLatestFrameWithInfo();
 
     /**
      * 释放摄像头资源
+     * 释放后可重新调用getLatestJpeg启动
      */
     void releaseCamera();
 
     /**
-     * 重启摄像头
+     * 启动或重启摄像头
+     * @return 操作结果
      */
     Result reinitCamera();
 
     /**
      * 摄像头是否正在运行
+     * @return 是否运行中
      */
     boolean isRunning();
 
     /**
-     * 获取摄像头信息
+     * 获取摄像头信息（分辨率、帧率等）
+     * @return 摄像头信息
      */
     CameraInfo getCameraInfo();
 }

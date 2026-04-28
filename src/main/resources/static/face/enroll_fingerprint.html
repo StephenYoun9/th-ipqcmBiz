@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>智能工具柜 - 指纹录入</title>
+    <link href="../css/common.css" rel="stylesheet">
+    <style>
+        body { padding: 20px; }
+        .card { max-width: 600px; margin: 0 auto; }
+        .fingerprint-box {
+            width: 200px;
+            height: 200px;
+            border: 3px dashed #ccc;
+            border-radius: 50%;
+            margin: 30px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            color: #aaa;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .fingerprint-box:hover { border-color: #3498db; color: #3498db; }
+        .fingerprint-box.active { border-color: #27ae60; color: #27ae60; animation: pulse 1s infinite; }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .text-center { text-align: center; }
+        .btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="logo">智能工具柜管理系统</div>
+    <div class="user-info">
+        <span id="loginUser">当前登录：管理员（admin）</span>
+        <a class="btn btn-danger" href="javascript:void(0)" onclick="logout()">退出登录</a>
+     <a class="btn btn-default" href="../admin/admin_employee.html">返回</a>
+    </div>
+</div>
+
+<div class="card">
+    <h2>指纹录入</h2>
+
+    <div class="input-box" style="max-width: 300px; margin: 0 auto;">
+        <div class="form-group">
+            <label>员工工号</label>
+            <input class="form-control" id="userId" type="text" disabled>
+        </div>
+        <div class="form-group">
+            <label>员工姓名</label>
+            <input class="form-control" id="userName" type="text" disabled>
+        </div>
+    </div>
+
+    <div class="fingerprint-box" id="fingerprintBox" onclick="startEnroll()">&#128104;</div>
+    <p class="text-center" id="statusText">点击图标开始录入指纹</p>
+
+    <div class="btn-group">
+        <button class="btn btn-primary" id="enrollBtn" onclick="startEnroll()">开始录入</button>
+        <button class="btn btn-danger" id="deleteBtn" onclick="deleteFinger()">删除指纹</button>
+        <button class="btn btn-default" onclick="back()">返回</button>
+    </div>
+</div>
+
+<script src="../js/constants.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+if (!initPageAuth(SESSION_TIMEOUT)) {
+    // Already redirected to login
+}
+const userId = new URLSearchParams(location.search).get('userId');
+const userName = new URLSearchParams(location.search).get('userName');
+const fingerRegistered = new URLSearchParams(location.search).get('fingerRegistered');
+
+document.getElementById('userId').value = userId || '';
+document.getElementById('userName').value = userName || '';
+document.getElementById('loginUser').textContent = '当前录入：' + userName + '（工号：' + userId + '）';
+
+if (fingerRegistered === 'Y') {
+    document.getElementById('statusText').textContent = '已录入指纹';
+    document.getElementById('fingerprintBox').classList.add('active');
+    document.getElementById('enrollBtn').textContent = '重新录入';
+}
+
+function startEnroll() {
+    const box = document.getElementById('fingerprintBox');
+    const status = document.getElementById('statusText');
+    box.classList.add('active');
+    status.textContent = '请将手指放在指纹仪上...';
+
+    fetch(API_BASE_URL + '/finger/enroll/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: userId })
+    })
+    .then(res => res.json())
+    .then(data => {
+        box.classList.remove('active');
+        if (data.code === 200) {
+            status.textContent = '指纹录入成功！';
+            box.classList.add('active');
+            setTimeout(() => location.href = '../admin/admin_employee.html', 1500);
+        } else {
+            status.textContent = data.message || '录入失败，请重试';
+        }
+    })
+    .catch(() => {
+        box.classList.remove('active');
+        status.textContent = '网络错误，请重试';
+    });
+}
+
+function deleteFinger() {
+    if (!confirm('确定要删除该员工的指纹数据吗？')) return;
+    fetch(API_BASE_URL + '/finger/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: userId })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.code === 200) {
+            alert('指纹数据已删除');
+            location.reload();
+        } else {
+            alert(data.message || '删除失败');
+        }
+    });
+}
+
+function back() {
+    location.href = '../admin/admin_employee.html';
+}
+</script>
+</body>
+</html>

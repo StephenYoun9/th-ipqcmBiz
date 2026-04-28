@@ -32,4 +32,7 @@ public class UserInfoRespVO {
 
     @Schema(description = "人脸录入情况;Y：已录入；N：未录入", example = "Y")
     private Boolean faceRegistered;
+
+    @Schema(description = "指纹录入情况;Y：已录入；N：未录入", example = "N")
+    private Boolean fingerRegistered;
 }

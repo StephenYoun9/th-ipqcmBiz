@@ -28,5 +28,7 @@ public class UserInfoReqVO {
     @Schema(description = "人脸录入状态", example = "0")
     private Boolean faceRegistered;
 
+    @Schema(description = "用户状态", example = "1")
+    private Integer status;
 
 }

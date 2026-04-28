@@ -1,0 +1,1 @@
+/* admin_log.html JS - currently static, no dynamic functionality */

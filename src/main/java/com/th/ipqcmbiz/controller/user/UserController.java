@@ -25,14 +25,7 @@ public class UserController extends BaseController {
     @Resource
     private UserService userService;
 
-    /**
-     * @Description 添加用户
-     * @Param userInfo 用户信息
-     * @Return Result<UserInfoRespVO>
-     * @Author 杨兴明
-     * @Date 2026/3/30 16:18
-     */
-    @Operation(summary = "新增用户", description = "根据用户编号查询用户信息")
+    @Operation(summary = "新增用户", description = "新增用户")
     @PostMapping(value = "/add")
     public Result<Void> addUser(@Valid @RequestBody UserInfoReqVO userInfo) {
         return success(userService.addUser(userInfo));
@@ -60,6 +53,18 @@ public class UserController extends BaseController {
     @PostMapping(value = "/query-user-list-by-user-id-list")
     public Result<PageInfo<UserInfoRespVO>> queryUserListByIds(@Valid @RequestBody UserIdListReqVO userIdListReqVO) {
         return success(userService.queryUserListByIds(userIdListReqVO));
+    }
+
+    @Operation(summary = "更新用户", description = "更新用户信息")
+    @PostMapping(value = "/update")
+    public Result<Void> updateUser(@Valid @RequestBody UserInfoReqVO userInfo) {
+        return success(userService.updateUser(userInfo));
+    }
+
+    @Operation(summary = "删除用户", description = "根据用户编号删除用户")
+    @PostMapping(value = "/delete")
+    public Result<Void> deleteUser(@RequestParam("userId") String userId) {
+        return success(userService.deleteUser(userId));
     }
 
 }

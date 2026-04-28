@@ -50,6 +50,12 @@ public class UserServiceImpl implements UserService {
         userInfoDO.setPassword(passwordEncoder.encode(userInfoDO.getPassword()));
         // 默认设置用户状态为启用（1）
         userInfoDO.setStatus(1);
+        // 默认设置指纹录入状态为未录入
+        userInfoDO.setFingerRegistered("N");
+        // 默认设置人脸录入状态为未录入
+        if (userInfoDO.getFaceRegistered() == null) {
+            userInfoDO.setFaceRegistered("N");
+        }
         // 2. 添加到数据库
         int insertCount  = userInfoMapper.addUser(userInfoDO);
         if (insertCount <= 0) {
@@ -101,5 +107,41 @@ public class UserServiceImpl implements UserService {
         List<UserInfoDO> userInfoList = userInfoMapper.queryUserListByUserIds(reqVO.getUserIds());
         List<UserInfoRespVO> userInfoRespVOList = userInfoProcessor.poList2VoList(userInfoList);
         return new PageInfo<>(userInfoRespVOList);
+    }
+
+    @Override
+    public Void updateUser(UserInfoReqVO userInfoReqVO) {
+        if (userInfoReqVO.getUserId() == null || userInfoReqVO.getUserId().trim().isEmpty()) {
+            throw new BusinessException("用户编号不能为空");
+        }
+        UserInfoDO existUser = userInfoMapper.queryUserById(userInfoReqVO.getUserId());
+        if (existUser == null) {
+            throw new BusinessException("用户不存在");
+        }
+        UserInfoDO userInfoDO = userInfoProcessor.vo2Po(userInfoReqVO);
+        if (userInfoDO.getPassword() != null && !userInfoDO.getPassword().isEmpty()) {
+            userInfoDO.setPassword(passwordEncoder.encode(userInfoDO.getPassword()));
+        }
+        int updateCount = userInfoMapper.updateUser(userInfoDO);
+        if (updateCount <= 0) {
+            throw new BusinessException("更新用户失败");
+        }
+        return null;
+    }
+
+    @Override
+    public Void deleteUser(String userId) {
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new BusinessException("用户编号不能为空");
+        }
+        UserInfoDO existUser = userInfoMapper.queryUserById(userId);
+        if (existUser == null) {
+            throw new BusinessException("用户不存在");
+        }
+        int deleteCount = userInfoMapper.deleteByUserId(userId);
+        if (deleteCount <= 0) {
+            throw new BusinessException("删除用户失败");
+        }
+        return null;
     }
 }

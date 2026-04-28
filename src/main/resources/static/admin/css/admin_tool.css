@@ -1,0 +1,17 @@
+/* admin_tool.html specific styles */
+
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.status-available {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-maintenance {
+    background-color: #fff3cd;
+    color: #856404;
+}

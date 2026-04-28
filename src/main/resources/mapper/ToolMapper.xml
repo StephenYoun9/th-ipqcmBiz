@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.th.ipqcmbiz.mapper.ToolMapper">
+
+    <resultMap id="toolResultMap" type="com.th.ipqcmbiz.entity.po.ToolInfoDO">
+        <id property="id" javaType="Long" column="ID" jdbcType="DECIMAL"/>
+        <result property="toolCode" javaType="String" column="TOOL_CODE" jdbcType="VARCHAR"/>
+        <result property="toolName" javaType="String" column="TOOL_NAME" jdbcType="VARCHAR"/>
+        <result property="toolType" javaType="String" column="TOOL_TYPE" jdbcType="VARCHAR"/>
+        <result property="cabinetNo" javaType="String" column="CABINET_NO" jdbcType="VARCHAR"/>
+        <result property="status" javaType="String" column="STATUS" jdbcType="VARCHAR"/>
+        <result property="specification" javaType="String" column="SPECIFICATION" jdbcType="VARCHAR"/>
+        <result property="imageUrl" javaType="String" column="IMAGE_URL" jdbcType="VARCHAR"/>
+        <result property="createTime" javaType="java.util.Date" column="CREATE_TIME" jdbcType="DATE"/>
+        <result property="updateTime" javaType="java.util.Date" column="UPDATE_TIME" jdbcType="DATE"/>
+    </resultMap>
+
+    <select id="selectList" resultMap="toolResultMap">
+        SELECT ID, TOOL_CODE, TOOL_NAME, TOOL_TYPE, CABINET_NO, STATUS, SPECIFICATION, IMAGE_URL, CREATE_TIME, UPDATE_TIME
+        FROM TOOL_INFO
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (TOOL_CODE like '%'||#{keyword}||'%' OR TOOL_NAME like '%'||#{keyword}||'%')
+            </if>
+        </where>
+        ORDER BY CREATE_TIME DESC
+    </select>
+
+    <select id="selectByCode" resultMap="toolResultMap">
+        SELECT ID, TOOL_CODE, TOOL_NAME, TOOL_TYPE, CABINET_NO, STATUS, SPECIFICATION, IMAGE_URL, CREATE_TIME, UPDATE_TIME
+        FROM TOOL_INFO
+        WHERE TOOL_CODE = #{toolCode}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO TOOL_INFO (ID, TOOL_CODE, TOOL_NAME, TOOL_TYPE, CABINET_NO, STATUS, SPECIFICATION, IMAGE_URL, CREATE_TIME, UPDATE_TIME)
+        VALUES (TOOL_INFO_SEQ.NEXTVAL, #{toolCode, jdbcType=VARCHAR}, #{toolName, jdbcType=VARCHAR}, #{toolType, jdbcType=VARCHAR}, #{cabinetNo, jdbcType=VARCHAR}, #{status, jdbcType=VARCHAR}, #{specification, jdbcType=VARCHAR}, #{imageUrl, jdbcType=VARCHAR}, SYSDATE, SYSDATE)
+    </insert>
+
+    <update id="update">
+        UPDATE TOOL_INFO
+        <set>
+            <if test="toolName != null and toolName != ''">TOOL_NAME = #{toolName, jdbcType=VARCHAR},</if>
+            <if test="toolType != null">TOOL_TYPE = #{toolType, jdbcType=VARCHAR},</if>
+            <if test="cabinetNo != null">CABINET_NO = #{cabinetNo, jdbcType=VARCHAR},</if>
+            <if test="status != null">STATUS = #{status, jdbcType=VARCHAR},</if>
+            <if test="specification != null">SPECIFICATION = #{specification, jdbcType=VARCHAR},</if>
+            <if test="imageUrl != null">IMAGE_URL = #{imageUrl, jdbcType=VARCHAR},</if>
+            UPDATE_TIME = SYSDATE
+        </set>
+        WHERE TOOL_CODE = #{toolCode, jdbcType=VARCHAR}
+    </update>
+
+    <delete id="deleteByCode">
+        DELETE FROM TOOL_INFO WHERE TOOL_CODE = #{toolCode, jdbcType=VARCHAR}
+    </delete>
+
+    <update id="updateStatus">
+        UPDATE TOOL_INFO
+        SET STATUS = #{status, jdbcType=VARCHAR}, UPDATE_TIME = SYSDATE
+        WHERE TOOL_CODE = #{toolCode, jdbcType=VARCHAR}
+    </update>
+
+</mapper>

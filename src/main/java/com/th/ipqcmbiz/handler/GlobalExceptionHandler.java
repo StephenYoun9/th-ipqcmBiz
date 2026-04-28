@@ -32,6 +32,7 @@ public class GlobalExceptionHandler {
     // 捕获所有其他异常（兜底）
     @ExceptionHandler(Exception.class)
     public Result handleException(Exception e) {
+        log.error("服务器异常: ", e);
         return Result.error(500, "服务器异常：" + e.getMessage());
     }
 

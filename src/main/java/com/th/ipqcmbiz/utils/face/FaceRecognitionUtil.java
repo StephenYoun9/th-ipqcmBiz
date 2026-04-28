@@ -1,184 +1,246 @@
 package com.th.ipqcmbiz.utils.face;
 
-import com.th.ipqcmbiz.entity.po.FaceInfoDO;
-import com.th.ipqcmbiz.mapper.face.FaceMapper;
+import com.th.ipqcmbiz.entity.po.FaceFeatureDO;
+import com.th.ipqcmbiz.mapper.face.FaceFeatureMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import nu.pattern.OpenCV;
 import org.opencv.core.*;
-import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.dnn.Dnn;
+import org.opencv.dnn.Net;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.CascadeClassifier;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
-/**
- * @ClassName 人脸识别工具类
- * @Description 类功能描述
- * @Author 杨兴明
- * @Date 2026/4/2 10:07
- * @Version 1.0
- */
 @Component
 @Slf4j
 public class FaceRecognitionUtil {
 
     private CascadeClassifier faceDetector;
-    private List<Mat> faceList = new ArrayList<>();
-    private Map<Integer, FaceInfoDO> faceInfoMap = new HashMap<>();
-    private boolean isFaceLoaded = false;
+    private Net recognizerNet;
 
-    // 数据库服务
     @Resource
-    private FaceMapper faceMapper;
-
-    // Redis 缓存（核心）
-    @Resource
-    private RedisTemplate<String, Object> redisTemplate;
-
-    // 缓存 KEY（固定）
-    private static final String FACE_CACHE_KEY = "face:template:all";
-
-    // 缓存过期时间：1小时（可改）
-    private static final long FACE_CACHE_EXPIRE = 60 * 60L;
+    private FaceFeatureMapper faceFeatureMapper;
 
     @PostConstruct
     public void init() {
-        OpenCV.loadLocally();
         try {
-            ClassPathResource resource = new ClassPathResource("haarcascade_frontalface_default.xml");
-            faceDetector = new CascadeClassifier(resource.getFile().getAbsolutePath());
-        } catch (IOException e) {
-            throw new RuntimeException("加载人脸检测器失败", e);
+            OpenCV.loadLocally();
+            ClassPathResource haar = new ClassPathResource("haarcascade_frontalface_default.xml");
+            faceDetector = new CascadeClassifier(haar.getFile().getAbsolutePath());
+            log.info("Haar级联检测器加载成功");
+
+            File tempModel = new File(System.getProperty("java.io.tmpdir"), "sface_recog_" + System.currentTimeMillis() + ".onnx");
+            ClassPathResource sface = new ClassPathResource("face_models/face_recognition_sface_2021dec.onnx");
+            try (java.io.InputStream is = sface.getInputStream()) {
+                java.nio.file.Files.copy(is, tempModel.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                recognizerNet = Dnn.readNetFromONNX(tempModel.getAbsolutePath());
+                log.info("SFace模型加载成功: {}", tempModel.getAbsolutePath());
+            }
+            tempModel.deleteOnExit();
+        } catch (Exception e) {
+            log.error("FaceRecognitionUtil初始化失败: {}", e.getMessage(), e);
         }
     }
 
-    /**
-    * @Description 从 Redis 或数据库加载人脸（带缓存优化）
-    * @Param
-    * @Return
-    * @Author 杨兴明
-    * @Date 2026/4/10 14:28
-    */
-    private void loadAllFaces() {
-        synchronized (this) {
-            if (isFaceLoaded) return;
+    public FaceFeatureDO matchFace(byte[] faceImageBytes) {
+        if (faceImageBytes == null || faceImageBytes.length == 0) {
+            return null;
+        }
 
-            // 清空旧数据
-            faceList.clear();
-            faceInfoMap.clear();
+        try {
+            BufferedImage image = ImageIO.read(new ByteArrayInputStream(faceImageBytes));
+            if (image == null) {
+                return null;
+            }
 
-            List<FaceInfoDO> faceInfoList;
+            BufferedImage face = detectAndCropFace(image);
+            if (face == null) {
+                log.debug("未检测到人脸");
+                return null;
+            }
 
-            try {
-                // ==========================================
-                // 第一步：先从 Redis 取
-                // ==========================================
-                faceInfoList = (List<FaceInfoDO>) redisTemplate.opsForValue().get(FACE_CACHE_KEY);
+            float[] queryFeature = extractFeature(face);
+            if (queryFeature == null) {
+                return null;
+            }
 
-                if (faceInfoList != null && !faceInfoList.isEmpty()) {
-                    log.info("=== 从 Redis 缓存加载人脸模板 ===");
-                } else {
-                    // ==========================================
-                    // 第二步：缓存没有 → 查数据库
-                    // ==========================================
-                    log.info("=== 从数据库加载人脸模板，并写入 Redis ===");
-                    faceInfoList = faceMapper.selectAllFace();
+            List<FaceFeatureDO> allFaces = faceFeatureMapper.selectAll();
+            if (allFaces == null || allFaces.isEmpty()) {
+                log.debug("数据库中无人脸模板");
+                return null;
+            }
 
-                    // 写入 Redis
-                    redisTemplate.opsForValue().set(FACE_CACHE_KEY, faceInfoList, FACE_CACHE_EXPIRE, TimeUnit.SECONDS);
+            float maxSim = 0;
+            FaceFeatureDO best = null;
+
+            for (FaceFeatureDO stored : allFaces) {
+                float[] dbFeature = bytesToFloats(stored.getFeatureVector());
+                float sim = cosineSimilarity(queryFeature, dbFeature);
+                if (sim > maxSim) {
+                    maxSim = sim;
+                    best = stored;
                 }
-            } catch (Exception e) {
-                // Redis 挂了 → 降级直接查数据库
-                log.info("Redis 异常，直接查询数据库：" + e);
-                faceInfoList = faceMapper.selectAllFace();
             }
 
-            // 加载到内存
-            for (int i = 0; i < faceInfoList.size(); i++) {
-                FaceInfoDO faceInfo = faceInfoList.get(i);
-                byte[] faceFeature = faceInfo.getFaceFeature();
-
-                Mat faceMat = new Mat(100, 100, CvType.CV_8UC1);
-                faceMat.put(0, 0, faceFeature);
-
-                faceList.add(faceMat);
-                faceInfoMap.put(i, faceInfo);
+            float threshold = best != null && best.getThreshold() != null ? best.getThreshold() : 0.4f;
+            if (maxSim >= threshold) {
+                log.info("人脸匹配成功: userId={}, similarity={}", best.getUserId(), maxSim);
+                return best;
+            } else {
+                log.info("人脸匹配失败: 最高相似度={}, 阈值={}", maxSim, threshold);
+                return null;
             }
 
-            isFaceLoaded = true;
-            log.info("人脸模板加载完成，数量：" + faceList.size());
+        } catch (Exception e) {
+            log.error("人脸匹配异常: {}", e.getMessage(), e);
+            return null;
         }
     }
 
-    /**
-    * @Description 人脸匹配
-    * @Param faceImageBytes 人脸特征
-    * @Return 人脸DO
-    * @Author 杨兴明
-    * @Date 2026/4/10 14:28
-    */
-    public FaceInfoDO matchFace(byte[] faceImageBytes) {
-        // 匹配时才加载（带缓存）
-        loadAllFaces();
+    private BufferedImage detectAndCropFace(BufferedImage image) {
+        if (image == null) return null;
 
-        Mat srcMat = Imgcodecs.imdecode(new MatOfByte(faceImageBytes), Imgcodecs.IMREAD_GRAYSCALE);
-        if (srcMat.empty()) return null;
+        try {
+            Mat mat = bufferedImageToMat(image);
+            Mat gray = new Mat();
+            Imgproc.cvtColor(mat, gray, Imgproc.COLOR_BGR2GRAY);
+            Imgproc.equalizeHist(gray, gray);
 
-        MatOfRect faces = new MatOfRect();
-        faceDetector.detectMultiScale(srcMat, faces, 1.1, 5, 0, new Size(80, 80));
-        Rect[] faceRects = faces.toArray();
-        if (faceRects.length == 0) return null;
-
-        Mat faceMat = new Mat(srcMat, faceRects[0]);
-        Imgproc.resize(faceMat, faceMat, new Size(100, 100));
-
-        double maxSim = 0;
-        int bestIndex = -1;
-
-        for (int i = 0; i < faceList.size(); i++) {
-            Mat res = new Mat();
-            Imgproc.matchTemplate(faceMat, faceList.get(i), res, Imgproc.TM_CCOEFF_NORMED);
-            double sim = Core.minMaxLoc(res).maxVal;
-
-            if (sim > 0.6 && sim > maxSim) {
-                maxSim = sim;
-                bestIndex = i;
+            MatOfRect faces = new MatOfRect();
+            if (faceDetector != null) {
+                faceDetector.detectMultiScale(gray, faces, 1.15, 2, 0, new Size(80, 80), new Size(400, 400));
             }
-        }
 
-        return bestIndex >= 0 ? faceInfoMap.get(bestIndex) : null;
+            List<Rect> faceList = faces.toList();
+            if (faceList.isEmpty()) {
+                mat.release();
+                gray.release();
+                faces.release();
+                return null;
+            }
+
+            Rect r = faceList.get(0);
+            int margin = (int) (Math.max(r.width, r.height) * 0.2);
+            int ix = Math.max(0, r.x - margin);
+            int iy = Math.max(0, r.y - margin);
+            int iw = Math.min(mat.cols() - ix, r.width + margin * 2);
+            int ih = Math.min(mat.rows() - iy, r.height + margin * 2);
+
+            Rect faceRect = new Rect(ix, iy, iw, ih);
+            Mat faceMat = new Mat(mat, faceRect);
+            Mat resized = new Mat();
+            Imgproc.resize(faceMat, resized, new Size(112, 112));
+
+            BufferedImage result = matToBufferedImage(resized);
+
+            mat.release();
+            gray.release();
+            faces.release();
+            faceMat.release();
+            resized.release();
+
+            return result;
+
+        } catch (Exception e) {
+            log.error("人脸检测失败: {}", e.getMessage());
+            return null;
+        }
     }
 
-    /**
-    * @Description 新增/删除/更新人脸后清除人脸缓存
-    * @Param
-    * @Return
-    * @Author 杨兴明
-    * @Date 2026/4/10 14:29
-    */
-    public void clearFaceCache() {
-        synchronized (this) {
-            // 删除 Redis 缓存
-            redisTemplate.delete(FACE_CACHE_KEY);
-            // 重置内存标记
-            isFaceLoaded = false;
-            faceList.clear();
-            faceInfoMap.clear();
-            log.info("=== 人脸缓存已清空，下次匹配重新加载 ===");
+    private float[] extractFeature(BufferedImage image) {
+        if (image == null || recognizerNet == null) return null;
+
+        try {
+            Mat mat = bufferedImageToMat(image);
+            Mat rgb = new Mat();
+            Imgproc.cvtColor(mat, rgb, Imgproc.COLOR_BGR2RGB);
+
+            Mat blob = Dnn.blobFromImage(rgb, 1.0 / 128.0, new Size(112, 112), new Scalar(0, 0, 0), false, false);
+            recognizerNet.setInput(blob);
+
+            Mat featureMat = recognizerNet.forward();
+            Core.normalize(featureMat, featureMat);
+
+            float[] feature = new float[(int) featureMat.total()];
+            featureMat.get(0, 0, feature);
+
+            mat.release();
+            rgb.release();
+            blob.release();
+            featureMat.release();
+
+            return feature;
+
+        } catch (Exception e) {
+            log.error("特征提取失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private float cosineSimilarity(float[] a, float[] b) {
+        if (a.length != b.length) return 0;
+        float dot = 0, normA = 0, normB = 0;
+        for (int i = 0; i < a.length; i++) {
+            dot += a[i] * b[i];
+            normA += a[i] * a[i];
+            normB += b[i] * b[i];
+        }
+        return (float) (dot / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-10));
+    }
+
+    private float[] bytesToFloats(byte[] bytes) {
+        float[] floats = new float[bytes.length / 4];
+        ByteBuffer.wrap(bytes).asFloatBuffer().get(floats);
+        return floats;
+    }
+
+    private Mat bufferedImageToMat(BufferedImage image) {
+        if (image == null) return null;
+        try {
+            int width = image.getWidth();
+            int height = image.getHeight();
+            int type = image.getType();
+            if (type == 0) type = BufferedImage.TYPE_3BYTE_BGR;
+            Mat mat = new Mat(height, width, CvType.CV_8UC3);
+            byte[] pixels = ((java.awt.image.DataBufferByte) image.getRaster().getDataBuffer()).getData();
+            mat.put(0, 0, pixels);
+            return mat;
+        } catch (Exception e) {
+            log.error("BufferedImage转Mat失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private BufferedImage matToBufferedImage(Mat mat) {
+        if (mat == null) return null;
+        try {
+            int width = mat.cols();
+            int height = mat.rows();
+            byte[] pixels = new byte[width * height * 3];
+            mat.get(0, 0, pixels);
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
+            image.getRaster().setDataElements(0, 0, width, height, pixels);
+            return image;
+        } catch (Exception e) {
+            log.error("Mat转BufferedImage失败: {}", e.getMessage());
+            return null;
         }
     }
 
     public byte[] base64ToBytes(String base64Str) {
-        return org.apache.commons.codec.binary.Base64.decodeBase64(base64Str);
+        if (base64Str == null) return null;
+        String s = base64Str;
+        if (s.contains(",")) s = s.split(",")[1];
+        return org.apache.commons.codec.binary.Base64.decodeBase64(s);
     }
 }

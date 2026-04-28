@@ -1,0 +1,44 @@
+.dashboard-card {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  flex: 1;
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  text-align: center;
+}
+.stat-num {
+  font-size: 32px;
+  font-weight: bold;
+  color: #3498db;
+  margin: 10px 0;
+}
+.stat-desc {
+  color: #666;
+}
+.func-card {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.func-item {
+  background-color: white;
+  border-radius: 8px;
+  padding: 30px 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.func-item:hover {
+  transform: translateY(-5px);
+}
+.func-icon {
+  font-size: 36px;
+  color: #3498db;
+  margin-bottom: 15px;
+}
