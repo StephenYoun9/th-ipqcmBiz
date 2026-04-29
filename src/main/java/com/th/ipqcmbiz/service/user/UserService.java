@@ -15,6 +15,8 @@ public interface UserService {
 
     List<UserInfoRespVO> queryUserListByIdOrName(String keyword);
 
+    PageInfo<UserInfoRespVO> queryUserListPaged(String keyword, int pageNum, int pageSize);
+
     UserInfoRespVO queryUserBysUserInfo(UserInfoReqVO userInfo);
 
     PageInfo<UserInfoRespVO> queryUserListByIds(UserIdListReqVO userIdListReqVO);

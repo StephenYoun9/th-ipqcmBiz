@@ -26,6 +26,30 @@
         ORDER BY CREATE_TIME DESC
     </select>
 
+    <select id="selectAvailableList" resultMap="toolResultMap">
+        SELECT ID, TOOL_CODE, TOOL_NAME, TOOL_TYPE, CABINET_NO, STATUS, SPECIFICATION, IMAGE_URL, CREATE_TIME, UPDATE_TIME
+        FROM TOOL_INFO
+        WHERE STATUS = 'AVAILABLE'
+        <if test="keyword != null and keyword != ''">
+            AND (TOOL_CODE like '%'||#{keyword}||'%' OR TOOL_NAME like '%'||#{keyword}||'%')
+        </if>
+        <if test="toolType != null and toolType != ''">
+            AND TOOL_TYPE = #{toolType}
+        </if>
+        ORDER BY CREATE_TIME DESC
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    </select>
+
+    <select id="countAvailableList" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM TOOL_INFO WHERE STATUS = 'AVAILABLE'
+        <if test="keyword != null and keyword != ''">
+            AND (TOOL_CODE like '%'||#{keyword}||'%' OR TOOL_NAME like '%'||#{keyword}||'%')
+        </if>
+        <if test="toolType != null and toolType != ''">
+            AND TOOL_TYPE = #{toolType}
+        </if>
+    </select>
+
     <select id="selectByCode" resultMap="toolResultMap">
         SELECT ID, TOOL_CODE, TOOL_NAME, TOOL_TYPE, CABINET_NO, STATUS, SPECIFICATION, IMAGE_URL, CREATE_TIME, UPDATE_TIME
         FROM TOOL_INFO

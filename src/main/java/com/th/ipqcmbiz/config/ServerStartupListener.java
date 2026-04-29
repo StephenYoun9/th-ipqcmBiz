@@ -7,7 +7,8 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.TimeUnit;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 @Component
 @Slf4j
@@ -22,6 +23,7 @@ public class ServerStartupListener implements ApplicationListener<ApplicationRea
     public void onApplicationEvent(ApplicationReadyEvent event) {
         Long currentTime = System.currentTimeMillis();
         redisTemplate.opsForValue().set(REDIS_KEY_SERVER_START, currentTime);
-        log.info("服务启动时间已记录: {}", currentTime);
+        String formattedTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(currentTime));
+        log.info("服务启动时间已记录: {}", formattedTime);
     }
 }

@@ -37,6 +37,15 @@ public class UserController extends BaseController {
         return success(userService.queryUserListByIdOrName(keyword));
     }
 
+    @Operation(summary = "用户列表分页查询", description = "根据用户id或名称分页查询用户列表")
+    @PostMapping(value = "/query-user-list-paged")
+    public Result<PageInfo<UserInfoRespVO>> queryUserListPaged(
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "pageNum", defaultValue = "1") int pageNum,
+            @RequestParam(value = "pageSize", defaultValue = "15") int pageSize) {
+        return success(userService.queryUserListPaged(keyword, pageNum, pageSize));
+    }
+
     @Operation(summary = "用户查询", description = "根据用户编号查询用户信息")
     @PostMapping(value = "/query-user-by-id")
     public Result<UserInfoRespVO> queryUserById(@RequestParam("userId") String userId) {

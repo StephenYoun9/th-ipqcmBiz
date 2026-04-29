@@ -2,7 +2,10 @@ package com.th.ipqcmbiz.interceptor;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.th.ipqcmbiz.context.UserContext;
 import com.th.ipqcmbiz.entity.common.Result;
+import com.th.ipqcmbiz.entity.po.LoginTokenDO;
+import com.th.ipqcmbiz.mapper.LoginTokenMapper;
 import com.th.ipqcmbiz.service.auth.AuthService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,23 +37,40 @@ public class AuthInterceptor implements HandlerInterceptor {
     @Resource
     private RedisTemplate<String, Object> redisTemplate;
 
-    private static final List<String> EXCLUDE_PATHS = Arrays.asList(
+    @Resource
+    private LoginTokenMapper loginTokenMapper;
+
+    private static final List<String> EXACT_EXCLUDE_PATHS = Arrays.asList(
             "/",
             "/index.html",
-            "/login/",
             "/logout",
-            "/auth/heartbeat",
-            "/auth/check",
-            "/auth/server-starttime",
+            "/error"
+    );
+
+    private static final List<String> PREFIX_EXCLUDE_PATHS = Arrays.asList(
+            "/login",
+            "/auth/",
             "/swagger-ui",
             "/v3/api-docs",
-            "/error",
-            "/js/**",
-            "/css/**",
-            "/image/**",
-            "/images/**",
-            "/static/**"
+            "/common/"
     );
+
+    private boolean isExcluded(String requestUri) {
+        for (String excludePath : EXACT_EXCLUDE_PATHS) {
+            if (requestUri.equals(excludePath)) {
+                return true;
+            }
+        }
+        for (String excludePath : PREFIX_EXCLUDE_PATHS) {
+            if (requestUri.startsWith(excludePath)) {
+                return true;
+            }
+        }
+        if (requestUri.contains(".")) {
+            return true;
+        }
+        return false;
+    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -59,28 +79,23 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
 
         String requestUri = request.getRequestURI();
+        String token = request.getHeader(authHeaderName);
+        log.debug("uri={}, token={}", requestUri, token);
 
-        for (String excludePath : EXCLUDE_PATHS) {
-            if (requestUri.contains(excludePath)) {
-                return true;
-            }
+        if (isExcluded(requestUri)) {
+            return true;
         }
 
-        String token = request.getHeader(authHeaderName);
-
         if (!StringUtils.hasText(token)) {
+            log.warn("Token为空，拒绝访问");
             sendUnauthorizedResponse(response, "未提供认证Token");
             return false;
         }
 
         boolean isValid = authService.validateToken(token);
         if (!isValid) {
+            log.warn("Token无效，拒绝访问");
             sendUnauthorizedResponse(response, "Token无效或已过期");
-            return false;
-        }
-
-        if (authService.isTokenCreatedBeforeServerRestart(token)) {
-            sendUnauthorizedResponse(response, "服务已重启，请重新登录");
             return false;
         }
 
@@ -88,6 +103,11 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (userId != null) {
             request.setAttribute("userId", userId);
             request.setAttribute("token", token);
+            UserContext.setUserId(userId);
+        } else {
+            log.warn("无法获取userId, token={}", token);
+            sendUnauthorizedResponse(response, "用户未登录");
+            return false;
         }
 
         return true;
@@ -98,15 +118,31 @@ public class AuthInterceptor implements HandlerInterceptor {
             String redisKey = REDIS_KEY_TOKEN_PREFIX + token;
             Object cached = redisTemplate.opsForValue().get(redisKey);
             if (cached != null) {
-                if (cached instanceof String) {
-                    JSONObject json = JSON.parseObject((String) cached);
-                    return json.getString("userId");
-                } else if (cached instanceof JSONObject) {
-                    return ((JSONObject) cached).getString("userId");
-                }
+                return extractUserId(cached);
             }
         } catch (Exception e) {
-            log.warn("获取Token用户ID失败", e);
+            log.warn("Redis获取userId异常: {}", e.getMessage());
+        }
+
+        try {
+            LoginTokenDO tokenDO = loginTokenMapper.selectByToken(token);
+            if (tokenDO != null) {
+                return tokenDO.getUserId();
+            }
+        } catch (Exception e) {
+            log.warn("从数据库获取userId异常: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private String extractUserId(Object data) {
+        if (data instanceof String) {
+            JSONObject json = JSON.parseObject((String) data);
+            return json.getString("userId");
+        } else if (data instanceof JSONObject) {
+            return ((JSONObject) data).getString("userId");
+        } else if (data instanceof LoginTokenDO) {
+            return ((LoginTokenDO) data).getUserId();
         }
         return null;
     }
@@ -117,5 +153,10 @@ public class AuthInterceptor implements HandlerInterceptor {
         response.setCharacterEncoding("UTF-8");
         Result<?> errorResult = Result.error(401, message);
         response.getWriter().write(JSON.toJSONString(errorResult));
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+        UserContext.clear();
     }
 }

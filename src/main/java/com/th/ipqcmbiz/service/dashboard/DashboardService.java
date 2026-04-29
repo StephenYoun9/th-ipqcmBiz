@@ -1,11 +1,11 @@
 package com.th.ipqcmbiz.service.dashboard;
 
+import com.github.pagehelper.PageInfo;
 import com.th.ipqcmbiz.entity.vo.output.DashboardStatsRespVO;
 import com.th.ipqcmbiz.entity.po.ExceptionLogDO;
-import java.util.List;
 
 public interface DashboardService {
     DashboardStatsRespVO getDashboardStats();
 
-    List<ExceptionLogDO> getPendingAlerts();
+    PageInfo<ExceptionLogDO> getPendingAlertsPaged(int pageNum, int pageSize);
 }

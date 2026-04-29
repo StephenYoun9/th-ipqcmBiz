@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.th.ipqcmbiz.mapper.OperationLogMapper">
+
+    <!-- 查询借还记录 -->
+    <select id="selectBorrowRecords" resultType="com.th.ipqcmbiz.entity.po.BorrowRecordDO">
+        SELECT ID, TOOL_CODE, USER_ID, BORROW_TIME, RETURN_TIME, STATUS, OPERATOR_TYPE
+        FROM BORROW_RECORD
+        WHERE 1=1
+        <if test="keyword != null and keyword != ''">
+            AND (USER_ID LIKE '%' || #{keyword} || '%')
+        </if>
+        <if test="startTime != null">
+            AND BORROW_TIME >= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND BORROW_TIME &lt;= #{endTime}
+        </if>
+        <if test="operatorType != null and operatorType != ''">
+            AND OPERATOR_TYPE = #{operatorType}
+        </if>
+        ORDER BY BORROW_TIME DESC
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    </select>
+
+    <!-- 查询借还记录总数 -->
+    <select id="countBorrowRecords" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM BORROW_RECORD
+        WHERE 1=1
+        <if test="keyword != null and keyword != ''">
+            AND (USER_ID LIKE '%' || #{keyword} || '%')
+        </if>
+        <if test="startTime != null">
+            AND BORROW_TIME >= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND BORROW_TIME &lt;= #{endTime}
+        </if>
+        <if test="operatorType != null and operatorType != ''">
+            AND OPERATOR_TYPE = #{operatorType}
+        </if>
+    </select>
+
+    <!-- 查询异常记录 -->
+    <select id="selectExceptionLogs" resultType="com.th.ipqcmbiz.entity.po.ExceptionLogDO">
+        SELECT ID, EXCEPTION_TYPE, TOOL_CODE, USER_ID, DESCRIPTION, STATUS, CREATE_TIME, HANDLE_TIME, HANDLER
+        FROM EXCEPTION_LOG
+        WHERE 1=1
+        <if test="keyword != null and keyword != ''">
+            AND (USER_ID LIKE '%' || #{keyword} || '%' OR DESCRIPTION LIKE '%' || #{keyword} || '%')
+        </if>
+        <if test="startTime != null">
+            AND CREATE_TIME >= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND CREATE_TIME &lt;= #{endTime}
+        </if>
+        <if test="operatorType != null and operatorType != ''">
+            AND EXCEPTION_TYPE = #{operatorType}
+        </if>
+        ORDER BY CREATE_TIME DESC
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    </select>
+
+    <!-- 查询异常记录总数 -->
+    <select id="countExceptionLogs" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM EXCEPTION_LOG
+        WHERE 1=1
+        <if test="keyword != null and keyword != ''">
+            AND (USER_ID LIKE '%' || #{keyword} || '%' OR DESCRIPTION LIKE '%' || #{keyword} || '%')
+        </if>
+        <if test="startTime != null">
+            AND CREATE_TIME >= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND CREATE_TIME &lt;= #{endTime}
+        </if>
+        <if test="operatorType != null and operatorType != ''">
+            AND EXCEPTION_TYPE = #{operatorType}
+        </if>
+    </select>
+
+    <!-- 统计异常记录数 -->
+    <select id="countAllExceptions" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM EXCEPTION_LOG
+        WHERE STATUS = 'pending'
+        <if test="startTime != null">
+            AND CREATE_TIME >= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND CREATE_TIME &lt;= #{endTime}
+        </if>
+    </select>
+
+    <!-- 根据工具编号查询工具名称 -->
+    <select id="selectToolNameByCode" resultType="java.lang.String">
+        SELECT TOOL_NAME FROM TOOL_INFO WHERE TOOL_CODE = #{toolCode}
+    </select>
+
+    <!-- 根据用户ID查询用户姓名 -->
+    <select id="selectUserNameById" resultType="java.lang.String">
+        SELECT USERNAME FROM USER_INFO WHERE USERID = #{userId}
+    </select>
+
+    <!-- 根据用户ID查询借还记录 -->
+    <select id="selectBorrowRecordsByUserId" resultType="com.th.ipqcmbiz.entity.po.BorrowRecordDO">
+        SELECT ID, TOOL_CODE, USER_ID, BORROW_TIME, RETURN_TIME, STATUS, OPERATOR_TYPE
+        FROM BORROW_RECORD
+        WHERE USER_ID = #{userId}
+        ORDER BY BORROW_TIME DESC
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    </select>
+
+    <!-- 根据用户ID查询借还记录（带工具名称和用户姓名） -->
+    <select id="selectBorrowRecordsWithDetailByUserId" resultType="com.th.ipqcmbiz.entity.vo.output.BorrowRecordRespVO">
+        SELECT br.ID, br.TOOL_CODE, t.TOOL_NAME, t.CABINET_NO,
+               br.USER_ID, u.USERNAME, br.BORROW_TIME, br.RETURN_TIME,
+               br.STATUS, br.OPERATOR_TYPE,
+               CASE br.STATUS WHEN 'BORROWED' THEN '已借出' WHEN 'RETURNED' THEN '已归还' WHEN 'OVERDUE' THEN '已逾期' ELSE br.STATUS END AS STATUS_NAME
+        FROM BORROW_RECORD br
+        LEFT JOIN TOOL_INFO t ON br.TOOL_CODE = t.TOOL_CODE
+        LEFT JOIN USER_INFO u ON br.USER_ID = u.USERID
+        WHERE br.USER_ID = #{userId}
+        ORDER BY br.BORROW_TIME DESC
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    </select>
+
+    <!-- 根据用户ID查询借还记录总数 -->
+    <select id="countBorrowRecordsByUserId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM BORROW_RECORD
+        WHERE USER_ID = #{userId}
+    </select>
+
+    <!-- 插入借记录 -->
+    <insert id="insertBorrowRecord">
+        INSERT INTO BORROW_RECORD (ID, TOOL_CODE, USER_ID, BORROW_TIME, STATUS, OPERATOR_TYPE)
+        VALUES (BORROW_RECORD_SEQ.NEXTVAL, #{toolCode}, #{userId}, SYSDATE, 'BORROWED', #{operatorType})
+    </insert>
+
+    <!-- 更新借还记录（还工具） -->
+    <update id="updateBorrowRecordReturn">
+        UPDATE BORROW_RECORD
+        SET RETURN_TIME = SYSDATE, STATUS = 'RETURNED'
+        WHERE TOOL_CODE = #{toolCode} AND USER_ID = #{userId} AND STATUS = 'BORROWED'
+    </update>
+
+    <!-- 查询用户未归还的工具 -->
+    <select id="selectBorrowedByUserId" resultType="com.th.ipqcmbiz.entity.po.BorrowRecordDO">
+        SELECT ID, TOOL_CODE, USER_ID, BORROW_TIME, RETURN_TIME, STATUS, OPERATOR_TYPE
+        FROM BORROW_RECORD
+        WHERE USER_ID = #{userId} AND STATUS = 'BORROWED'
+        ORDER BY BORROW_TIME DESC
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    </select>
+
+    <!-- 查询用户未归还的工具总数 -->
+    <select id="countBorrowedByUserId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM BORROW_RECORD
+        WHERE USER_ID = #{userId} AND STATUS = 'BORROWED'
+    </select>
+
+</mapper>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.th.ipqcmbiz.mapper.AnnouncementMapper">
+
+    <resultMap id="announcementResultMap" type="com.th.ipqcmbiz.entity.po.AnnouncementDO">
+        <id property="id" javaType="Long" column="ID" jdbcType="DECIMAL"/>
+        <result property="title" javaType="String" column="TITLE" jdbcType="VARCHAR"/>
+        <result property="content" javaType="String" column="CONTENT" jdbcType="VARCHAR"/>
+        <result property="type" javaType="String" column="TYPE" jdbcType="VARCHAR"/>
+        <result property="publisherId" javaType="String" column="PUBLISHER_ID" jdbcType="VARCHAR"/>
+        <result property="publisherName" javaType="String" column="PUBLISHER_NAME" jdbcType="VARCHAR"/>
+        <result property="status" javaType="String" column="STATUS" jdbcType="VARCHAR"/>
+        <result property="attachments" javaType="String" column="ATTACHMENTS" jdbcType="VARCHAR"/>
+        <result property="expireTime" javaType="java.util.Date" column="EXPIRE_TIME" jdbcType="TIMESTAMP"/>
+        <result property="createTime" javaType="java.util.Date" column="CREATE_TIME" jdbcType="TIMESTAMP"/>
+        <result property="updateTime" javaType="java.util.Date" column="UPDATE_TIME" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <insert id="insert">
+        <selectKey keyProperty="id" resultType="Long" order="BEFORE">
+            SELECT ANNOUNCEMENT_SEQ.NEXTVAL FROM DUAL
+        </selectKey>
+        INSERT INTO ANNOUNCEMENT (ID, TITLE, CONTENT, TYPE, PUBLISHER_ID, PUBLISHER_NAME, STATUS, ATTACHMENTS, EXPIRE_TIME, CREATE_TIME, UPDATE_TIME)
+        VALUES (#{id}, #{title, jdbcType=VARCHAR}, #{content, jdbcType=VARCHAR},
+                #{type, jdbcType=VARCHAR}, #{publisherId, jdbcType=VARCHAR}, #{publisherName, jdbcType=VARCHAR},
+                #{status, jdbcType=VARCHAR}, #{attachments, jdbcType=VARCHAR},
+                #{expireTime, jdbcType=TIMESTAMP}, SYSDATE, SYSDATE)
+    </insert>
+
+    <update id="update">
+        UPDATE ANNOUNCEMENT
+        <set>
+            <if test="title != null and title != ''">TITLE = #{title, jdbcType=VARCHAR},</if>
+            <if test="content != null and content != ''">CONTENT = #{content, jdbcType=VARCHAR},</if>
+            <if test="type != null">TYPE = #{type, jdbcType=VARCHAR},</if>
+            <if test="status != null">STATUS = #{status, jdbcType=VARCHAR},</if>
+            <if test="attachments != null and attachments != '[]'">ATTACHMENTS = #{attachments, jdbcType=VARCHAR},</if>
+            <if test="attachments == null or attachments == '[]'">ATTACHMENTS = NULL,</if>
+            <if test="expireTime != null">EXPIRE_TIME = #{expireTime, jdbcType=TIMESTAMP},</if>
+            UPDATE_TIME = SYSDATE
+        </set>
+        WHERE ID = #{id, jdbcType=DECIMAL}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM ANNOUNCEMENT WHERE ID = #{id, jdbcType=DECIMAL}
+    </delete>
+
+    <select id="selectById" resultMap="announcementResultMap">
+        SELECT ID, TITLE, CONTENT, TYPE, PUBLISHER_ID, PUBLISHER_NAME, STATUS, ATTACHMENTS, EXPIRE_TIME, CREATE_TIME, UPDATE_TIME
+        FROM ANNOUNCEMENT
+        WHERE ID = #{id, jdbcType=DECIMAL}
+    </select>
+
+    <select id="selectActiveList" resultMap="announcementResultMap">
+        SELECT ID, TITLE, CONTENT, TYPE, PUBLISHER_ID, PUBLISHER_NAME, STATUS, ATTACHMENTS, EXPIRE_TIME, CREATE_TIME, UPDATE_TIME
+        FROM ANNOUNCEMENT
+        WHERE STATUS = 'active'
+          AND (EXPIRE_TIME IS NULL OR EXPIRE_TIME > SYSDATE)
+        ORDER BY CREATE_TIME DESC
+    </select>
+
+    <select id="selectAllList" resultMap="announcementResultMap">
+        SELECT ID, TITLE, CONTENT, TYPE, PUBLISHER_ID, PUBLISHER_NAME, STATUS, ATTACHMENTS, EXPIRE_TIME, CREATE_TIME, UPDATE_TIME
+        FROM ANNOUNCEMENT
+        ORDER BY CREATE_TIME DESC
+    </select>
+
+</mapper>

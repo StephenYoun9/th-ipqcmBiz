@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.th.ipqcmbiz.mapper.borrow.BorrowRecordMapper">
+
+    <resultMap id="BaseResultMap" type="com.th.ipqcmbiz.entity.po.BorrowRecordDO">
+        <id property="id" column="ID"/>
+        <result property="toolCode" column="TOOL_CODE"/>
+        <result property="userId" column="USER_ID"/>
+        <result property="borrowTime" column="BORROW_TIME"/>
+        <result property="returnTime" column="RETURN_TIME"/>
+        <result property="status" column="STATUS"/>
+        <result property="operatorType" column="OPERATOR_TYPE"/>
+    </resultMap>
+
+    <resultMap id="DetailResultMap" type="com.th.ipqcmbiz.entity.vo.output.BorrowRecordRespVO">
+        <id property="id" column="ID"/>
+        <result property="toolCode" column="TOOL_CODE"/>
+        <result property="toolName" column="TOOL_NAME"/>
+        <result property="cabinetNo" column="CABINET_NO"/>
+        <result property="userId" column="USER_ID"/>
+        <result property="userName" column="USERNAME"/>
+        <result property="borrowTime" column="BORROW_TIME"/>
+        <result property="returnTime" column="RETURN_TIME"/>
+        <result property="status" column="STATUS"/>
+        <result property="statusName" column="STATUS_NAME"/>
+        <result property="operatorType" column="OPERATOR_TYPE"/>
+    </resultMap>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        SELECT ID, TOOL_CODE, USER_ID, BORROW_TIME, RETURN_TIME, STATUS, OPERATOR_TYPE
+        FROM BORROW_RECORD
+        WHERE USER_ID = #{userId}
+        ORDER BY BORROW_TIME DESC
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    </select>
+
+    <select id="countByUserId" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM BORROW_RECORD WHERE USER_ID = #{userId}
+    </select>
+
+    <select id="selectBorrowedByUserId" resultMap="BaseResultMap">
+        SELECT ID, TOOL_CODE, USER_ID, BORROW_TIME, RETURN_TIME, STATUS, OPERATOR_TYPE
+        FROM BORROW_RECORD
+        WHERE USER_ID = #{userId} AND STATUS = 'BORROWED'
+        ORDER BY BORROW_TIME DESC
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    </select>
+
+    <select id="countBorrowedByUserId" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM BORROW_RECORD WHERE USER_ID = #{userId} AND STATUS = 'BORROWED'
+    </select>
+
+    <select id="selectWithDetailByUserId" resultMap="DetailResultMap">
+        SELECT br.ID, br.TOOL_CODE, t.TOOL_NAME, t.CABINET_NO,
+               br.USER_ID, u.USERNAME, br.BORROW_TIME, br.RETURN_TIME,
+               br.STATUS, br.OPERATOR_TYPE,
+               CASE br.STATUS WHEN 'BORROWED' THEN '已借出' WHEN 'RETURNED' THEN '已归还' WHEN 'OVERDUE' THEN '已逾期' ELSE br.STATUS END AS STATUS_NAME
+        FROM BORROW_RECORD br
+        LEFT JOIN TOOL_INFO t ON br.TOOL_CODE = t.TOOL_CODE
+        LEFT JOIN USER_INFO u ON br.USER_ID = u.USERID
+        WHERE br.USER_ID = #{userId}
+        ORDER BY br.BORROW_TIME DESC
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    </select>
+
+    <insert id="insert">
+        INSERT INTO BORROW_RECORD (ID, TOOL_CODE, USER_ID, BORROW_TIME, STATUS, OPERATOR_TYPE)
+        VALUES (BORROW_RECORD_SEQ.NEXTVAL, #{toolCode}, #{userId}, SYSDATE, 'BORROWED', #{operatorType})
+    </insert>
+
+    <update id="updateReturn">
+        UPDATE BORROW_RECORD
+        SET RETURN_TIME = SYSDATE, STATUS = 'RETURNED'
+        WHERE TOOL_CODE = #{toolCode} AND USER_ID = #{userId} AND STATUS = 'BORROWED'
+    </update>
+
+    <select id="selectForOperationLog" resultMap="BaseResultMap">
+        SELECT ID, TOOL_CODE, USER_ID, BORROW_TIME, RETURN_TIME, STATUS, OPERATOR_TYPE
+        FROM BORROW_RECORD
+        WHERE 1=1
+        <if test="keyword != null and keyword != ''">
+            AND (USER_ID LIKE '%' || #{keyword} || '%')
+        </if>
+        <if test="startTime != null">
+            AND BORROW_TIME >= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND BORROW_TIME &lt;= #{endTime}
+        </if>
+        <if test="operatorType != null and operatorType != ''">
+            AND OPERATOR_TYPE = #{operatorType}
+        </if>
+        ORDER BY BORROW_TIME DESC
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    </select>
+
+    <select id="countForOperationLog" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM BORROW_RECORD
+        WHERE 1=1
+        <if test="keyword != null and keyword != ''">
+            AND (USER_ID LIKE '%' || #{keyword} || '%')
+        </if>
+        <if test="startTime != null">
+            AND BORROW_TIME >= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND BORROW_TIME &lt;= #{endTime}
+        </if>
+        <if test="operatorType != null and operatorType != ''">
+            AND OPERATOR_TYPE = #{operatorType}
+        </if>
+    </select>
+
+</mapper>

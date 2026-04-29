@@ -11,6 +11,10 @@ public interface ToolMapper {
 
     List<ToolInfoDO> selectList(@Param("keyword") String keyword);
 
+    List<ToolInfoDO> selectAvailableList(@Param("keyword") String keyword, @Param("toolType") String toolType, @Param("offset") int offset, @Param("limit") int limit);
+
+    Long countAvailableList(@Param("keyword") String keyword, @Param("toolType") String toolType);
+
     ToolInfoDO selectByCode(@Param("toolCode") String toolCode);
 
     int insert(ToolInfoDO tool);

@@ -11,7 +11,7 @@
     <div class="logo">智能工具柜管理系统</div>
     <div class="user-info">
         <span>当前登录：张三（工号：001）</span>
-        <a href="javascript:void(0)" onclick="logout()">退出登录</a>
+        <a href="javascript:void(0)" class="btn btn-danger" onclick="logout()">退出登录</a>
     </div>
 </div>
 
@@ -28,39 +28,32 @@
     <table class="table">
         <thead>
         <tr>
+            <th>工具编号</th>
             <th>工具名称</th>
-            <th>操作时间</th>
+            <th>柜号</th>
+            <th>借出时间</th>
+            <th>归还时间</th>
             <th>状态</th>
         </tr>
         </thead>
-        <tbody>
-        <tr>
-            <td>扳手（W001）</td>
-            <td>2026-03-05 09:30</td>
-            <td>已借出</td>
-        </tr>
-        <tr>
-            <td>螺丝刀（S002）</td>
-            <td>2026-03-04 14:20</td>
-            <td>已归还</td>
-        </tr>
-        <tr>
-            <td>老虎钳（L003）</td>
-            <td>2026-03-03 10:15</td>
-            <td>已归还</td>
-        </tr>
+        <tbody id="borrowTableBody">
+        <tr><td colspan="6" style="text-align: center;">加载中...</td></tr>
         </tbody>
     </table>
-    <div style="margin-top: 10px;">
-        <a href="personal_center.html" style="color: #3498db;">查看全部记录 →</a>
-    </div>
+    <div id="borrowPagination" style="margin-top: 15px; text-align: center;"></div>
 </div>
 
 <div class="card">
     <h2>系统公告</h2>
-    <div class="alert alert-info">
-        温馨提示：今日14:00-15:00系统将进行维护，期间暂停工具借还服务，敬请谅解！
+    <div id="announcementContainer">
+        <div class="alert alert-info">加载中...</div>
     </div>
+</div>
+
+<!-- 图片预览弹窗 -->
+<div class="modal" id="imagePreviewModal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); cursor: pointer;" onclick="closeImagePreview()">
+    <span style="position: absolute; right: 20px; top: 10px; color: white; font-size: 40px; cursor: pointer;">&times;</span>
+    <img id="previewImage" style="max-width: 90%; max-height: 90%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
 </div>
 <script src="../js/constants.js"></script>
 <script src="../js/auth.js"></script>

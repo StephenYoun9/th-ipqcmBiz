@@ -2,6 +2,8 @@ let toolList = [];
 let currentEditTool = null;
 let selectedImageFile = null;
 let existingImageUrl = null;
+let toolPageNum = 1;
+let toolTotal = 0;
 
 function openAddToolModal() {
     currentEditTool = null;
@@ -80,18 +82,34 @@ function removeImage() {
     }
 }
 
-function loadToolList(keyword) {
-    const token = localStorage.getItem('token');
-    fetch(API_BASE_URL + '/admin/tool/list?keyword=' + (keyword || ''), {
-        headers: { 'Authorization': 'Bearer ' + token }
+function loadToolList(keyword, pageNum) {
+    if (pageNum) toolPageNum = pageNum;
+    const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
+    const pageSize = 15;
+    fetch(API_BASE_URL + '/admin/tool/list/paged?keyword=' + encodeURIComponent(keyword || '') + '&pageNum=' + toolPageNum + '&pageSize=' + pageSize, {
+        headers: { [AUTH_HEADER]: token }
     })
     .then(response => response.json())
     .then(data => {
-        if (data.code === 200) {
-            toolList = data.data || [];
+        if (data.code === 200 && data.data) {
+            toolList = data.data.list || [];
+            toolTotal = data.data.total;
             renderToolTable();
+            renderToolPagination();
         }
     });
+}
+
+function renderToolPagination() {
+    const container = document.getElementById('paginationContainer');
+    const totalPages = Math.ceil(toolTotal / 15);
+    container.innerHTML = `
+        <button class="btn btn-default btn-sm" onclick="loadToolList(document.getElementById('searchKeyword').value, ${toolPageNum - 1})" ${toolPageNum <= 1 ? 'disabled' : ''}>上一页</button>
+        <span style="margin: 0 5px;">第</span>
+        <input type="number" id="toolPageInput" value="${toolPageNum}" min="1" max="${totalPages}" style="width: 50px; text-align: center; padding: 2px;" onkeypress="if(event.key==='Enter'){let p=parseInt(this.value);if(p>=1&&p<=${totalPages})loadToolList(document.getElementById('searchKeyword').value, p);}">
+        <span style="margin: 0 5px;">/ ${totalPages} 页，共 ${toolTotal} 条</span>
+        <button class="btn btn-default btn-sm" onclick="loadToolList(document.getElementById('searchKeyword').value, ${toolPageNum + 1})" ${toolPageNum >= totalPages ? 'disabled' : ''}>下一页</button>
+    `;
 }
 
 function renderToolTable() {
@@ -146,7 +164,7 @@ function getToolTypeName(type) {
 }
 
 function saveTool() {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
     const isEdit = currentEditTool !== null;
     const method = isEdit ? 'PUT' : 'POST';
     const url = isEdit ? API_BASE_URL + '/admin/tool' : API_BASE_URL + '/admin/tool';
@@ -174,7 +192,7 @@ function saveTool() {
     fetch(url, {
         method: method,
         headers: {
-            'Authorization': 'Bearer ' + token,
+            [AUTH_HEADER]: token,
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(data)
@@ -187,7 +205,7 @@ function saveTool() {
             } else {
                 alert(isEdit ? '更新成功' : '上架成功');
                 closeAddToolModal();
-                loadToolList();
+                loadToolList(document.getElementById('searchKeyword').value);
             }
         } else {
             alert(data.message || '操作失败');
@@ -196,14 +214,14 @@ function saveTool() {
 }
 
 function uploadImage(toolCode, isEdit) {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
     const formData = new FormData();
     formData.append('file', selectedImageFile);
 
     fetch(API_BASE_URL + '/admin/tool/image/' + toolCode, {
         method: 'POST',
         headers: {
-            'Authorization': 'Bearer ' + token
+            [AUTH_HEADER]: token
         },
         body: formData
     })
@@ -213,33 +231,33 @@ function uploadImage(toolCode, isEdit) {
             existingImageUrl = data.data;
             alert(isEdit ? '更新成功' : '上架成功');
             closeAddToolModal();
-            loadToolList();
+            loadToolList(document.getElementById('searchKeyword').value);
         } else {
             alert((isEdit ? '更新成功但' : '上架成功但') + '图片上传失败: ' + data.message);
             closeAddToolModal();
-            loadToolList();
+            loadToolList(document.getElementById('searchKeyword').value);
         }
     })
     .catch(err => {
         alert(isEdit ? '更新成功但图片上传失败' : '上架成功但图片上传失败');
         closeAddToolModal();
-        loadToolList();
+        loadToolList(document.getElementById('searchKeyword').value);
     });
 }
 
 function deleteToolImage(toolCode) {
     if (!confirm('确定要删除该工具的图片吗？')) return;
 
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
     fetch(API_BASE_URL + '/admin/tool/image/' + toolCode, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer ' + token }
+        headers: { [AUTH_HEADER]: token }
     })
     .then(response => response.json())
     .then(data => {
         if (data.code === 200) {
             alert('图片已删除');
-            loadToolList();
+            loadToolList(document.getElementById('searchKeyword').value);
         } else {
             alert(data.message || '删除失败');
         }
@@ -262,16 +280,16 @@ function finishMaintenance(toolCode) {
 }
 
 function updateToolStatus(toolCode, status) {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
     fetch(API_BASE_URL + '/admin/tool/status/' + toolCode + '?status=' + status, {
         method: 'PUT',
-        headers: { 'Authorization': 'Bearer ' + token }
+        headers: { [AUTH_HEADER]: token }
     })
     .then(response => response.json())
     .then(data => {
         if (data.code === 200) {
             alert('操作成功');
-            loadToolList();
+            loadToolList(document.getElementById('searchKeyword').value);
         } else {
             alert(data.message || '操作失败');
         }
@@ -280,11 +298,12 @@ function updateToolStatus(toolCode, status) {
 
 function searchTool() {
     const keyword = document.getElementById('searchKeyword').value;
+    toolPageNum = 1;
     loadToolList(keyword);
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadToolList();
+    loadToolList(document.getElementById('searchKeyword').value);
 
     const searchInput = document.getElementById('searchKeyword');
     if (searchInput) {

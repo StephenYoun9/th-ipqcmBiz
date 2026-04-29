@@ -93,6 +93,14 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public PageInfo<UserInfoRespVO> queryUserListPaged(String keyword, int pageNum, int pageSize) {
+        PageHelper.startPage(pageNum, pageSize);
+        List<UserInfoDO> userInfoList = userInfoMapper.queryUserListByIdOrName(keyword);
+        List<UserInfoRespVO> userInfoRespVOList = userInfoProcessor.poList2VoList(userInfoList);
+        return new PageInfo<>(userInfoRespVOList);
+    }
+
+    @Override
     public UserInfoRespVO queryUserBysUserInfo(UserInfoReqVO userInfo) {
         UserInfoDO infoDO = userInfoProcessor.vo2Po(userInfo);
         UserInfoDO userInfoDO = userInfoMapper.queryUserByUserInfo(infoDO);

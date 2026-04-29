@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.th.ipqcmbiz.mapper.exception.ExceptionLogMapper">
+
+    <resultMap id="BaseResultMap" type="com.th.ipqcmbiz.entity.po.ExceptionLogDO">
+        <id property="id" column="ID"/>
+        <result property="exceptionType" column="EXCEPTION_TYPE"/>
+        <result property="toolCode" column="TOOL_CODE"/>
+        <result property="userId" column="USER_ID"/>
+        <result property="description" column="DESCRIPTION"/>
+        <result property="status" column="STATUS"/>
+        <result property="createTime" column="CREATE_TIME"/>
+        <result property="handleTime" column="HANDLE_TIME"/>
+        <result property="handler" column="HANDLER"/>
+    </resultMap>
+
+    <select id="select" resultMap="BaseResultMap">
+        SELECT ID, EXCEPTION_TYPE, TOOL_CODE, USER_ID, DESCRIPTION, STATUS, CREATE_TIME, HANDLE_TIME, HANDLER
+        FROM EXCEPTION_LOG
+        WHERE 1=1
+        <if test="keyword != null and keyword != ''">
+            AND (USER_ID LIKE '%' || #{keyword} || '%' OR DESCRIPTION LIKE '%' || #{keyword} || '%')
+        </if>
+        <if test="startTime != null">
+            AND CREATE_TIME >= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND CREATE_TIME &lt;= #{endTime}
+        </if>
+        <if test="operatorType != null and operatorType != ''">
+            AND EXCEPTION_TYPE = #{operatorType}
+        </if>
+        ORDER BY CREATE_TIME DESC
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    </select>
+
+    <select id="count" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM EXCEPTION_LOG
+        WHERE 1=1
+        <if test="keyword != null and keyword != ''">
+            AND (USER_ID LIKE '%' || #{keyword} || '%' OR DESCRIPTION LIKE '%' || #{keyword} || '%')
+        </if>
+        <if test="startTime != null">
+            AND CREATE_TIME >= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND CREATE_TIME &lt;= #{endTime}
+        </if>
+        <if test="operatorType != null and operatorType != ''">
+            AND EXCEPTION_TYPE = #{operatorType}
+        </if>
+    </select>
+
+    <select id="countPending" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM EXCEPTION_LOG
+        WHERE STATUS = 'pending'
+        <if test="startTime != null">
+            AND CREATE_TIME >= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND CREATE_TIME &lt;= #{endTime}
+        </if>
+    </select>
+
+    <select id="countAllExceptions" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM EXCEPTION_LOG
+        WHERE STATUS = 'pending'
+        <if test="startTime != null">
+            AND CREATE_TIME >= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND CREATE_TIME &lt;= #{endTime}
+        </if>
+    </select>
+
+</mapper>

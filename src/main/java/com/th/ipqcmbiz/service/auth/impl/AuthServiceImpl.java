@@ -60,7 +60,7 @@ public class AuthServiceImpl implements AuthService {
         redisTemplate.opsForValue().set(REDIS_KEY_TOKEN_PREFIX + token, tokenData, tokenExpireMinutes, TimeUnit.MINUTES);
         redisTemplate.opsForValue().set(REDIS_KEY_USER_PREFIX + userId, token, tokenExpireMinutes, TimeUnit.MINUTES);
 
-        log.info("创建Token成功, userId={}, token={}", userId, token);
+        log.debug("创建Token成功, userId={}, token={}", userId, token);
         return token;
     }
 
@@ -147,7 +147,7 @@ public class AuthServiceImpl implements AuthService {
             redisTemplate.delete(REDIS_KEY_TOKEN_PREFIX + token);
             redisTemplate.delete(REDIS_KEY_USER_PREFIX + tokenDO.getUserId());
             loginTokenMapper.deleteByToken(token);
-            log.info("失效Token成功, userId={}, token={}", tokenDO.getUserId(), token);
+            log.debug("失效Token成功, userId={}, token={}", tokenDO.getUserId(), token);
         }
     }
 
@@ -158,7 +158,7 @@ public class AuthServiceImpl implements AuthService {
             redisTemplate.delete(REDIS_KEY_TOKEN_PREFIX + existingToken.getToken());
             redisTemplate.delete(REDIS_KEY_USER_PREFIX + userId);
             loginTokenMapper.deleteByUserId(userId);
-            log.info("失效用户所有Token, userId={}", userId);
+            log.debug("失效用户所有Token, userId={}", userId);
         }
     }
 

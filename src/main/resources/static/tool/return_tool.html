@@ -12,7 +12,7 @@
   <div class="user-info">
     <a href="../employee/employee_index.html" class="btn btn-default">返回主界面</a>
      <a class="btn btn-danger" href="javascript:void(0)" onclick="logout()">退出登录</a>
-     <span>当前登录：张三（工号：001）</span>
+     <span></span>
   </div>
 </div>
 
@@ -27,32 +27,25 @@
     <thead>
     <tr>
       <th>选择</th>
-      <th>工具名称</th>
       <th>工具编号</th>
       <th>借出时间</th>
-      <th>存放位置</th>
     </tr>
     </thead>
-    <tbody>
-    <tr>
-      <td><input type="radio" name="returnTool" value="W001" checked></td>
-      <td>扳手</td>
-      <td>W001</td>
-      <td>2026-03-05 09:30</td>
-      <td>A01柜（归还至原位置）</td>
-    </tr>
+    <tbody id="borrowedTableBody">
+    <tr><td colspan="3" style="text-align: center;">加载中...</td></tr>
     </tbody>
   </table>
+  <div id="paginationContainer" style="margin-top: 15px; text-align: center;"></div>
 
   <div style="margin-top: 15px;">
-    <button class="btn btn-success" id="returnBtn">确认归还</button>
+    <button class="btn btn-success" id="returnBtn" onclick="confirmReturn()" disabled>确认归还</button>
   </div>
 </div>
 
 <div class="card">
   <h3>归还进度提示</h3>
   <div class="alert alert-info" id="returnTips">
-    等待确认归还操作...
+    请选择要归还的工具，点击确认归还...
   </div>
 </div>
 <script src="../js/constants.js"></script>

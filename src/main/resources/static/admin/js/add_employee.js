@@ -47,9 +47,14 @@ function saveEmployee() {
         faceRegistered: document.getElementById('faceSuccess').style.display === 'inline-block'
     };
 
+    const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
+
     fetch(API_BASE_URL + '/user/add', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+            'Content-Type': 'application/json',
+            [AUTH_HEADER]: token
+        },
         body: JSON.stringify(employeeData)
     })
         .then(response => response.json())
