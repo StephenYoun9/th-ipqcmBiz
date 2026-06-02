@@ -6,6 +6,7 @@ import com.th.ipqcmbiz.entity.po.ToolInfoDO;
 import com.th.ipqcmbiz.entity.vo.output.BorrowRecordRespVO;
 
 import java.util.List;
+import java.util.Map;
 
 public interface ToolService {
 
@@ -31,7 +32,11 @@ public interface ToolService {
 
     boolean returnTool(String toolCode);
 
+    boolean returnTool(String toolCode, String returnOperatorId);
+
     PageInfo<BorrowRecordDO> getMyBorrowedTools(int pageNum, int pageSize);
 
     PageInfo<BorrowRecordRespVO> getMyBorrowRecords(int pageNum, int pageSize);
+
+    Map<String, Object> getBorrowStats();
 }

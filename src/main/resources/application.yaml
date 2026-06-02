@@ -7,7 +7,7 @@ spring:
     url: jdbc:oracle:thin:@//localhost:1521/orcl
     username: C##IPQCM
     password: IPQCM_123
-    driver-class-name: oracle.jdbc.driver.OracleDriver
+    driver-class-name: oracle.jdbc.OracleDriver
     #
     type: com.alibaba.druid.pool.DruidDataSource
     druid:
@@ -87,26 +87,58 @@ springdoc:
   swagger-ui:
     enabled: true
 
+# 分页插件配置
 pagehelper:
   helper-dialect: oracle     # 指定数据库方言
   reasonable: true          # 页码溢出自动修正（如-1转为1）
   support-methods-arguments: true  # 支持接口参数传递分页
   params: count=countSql    # 优化COUNT查询性能
   auto-runtime-dialect: true  # 多数据源时自动识别方言
+
+# 服务器配置
 server:
+  port: 3030
   forward-headers-strategy: native
 
+# 认证配置
 auth:
   token:
+    # Token过期时间（分钟）
     expire-minutes: 30
+    # 前端传递Token的Header名称
     header-name: X-Auth-Token
 
+# 人脸识别配置
 face:
   model:
+    # 人脸检测模型路径
     detection: classpath:face_models/face_detection_yunet_2023mar.onnx
+    # 人脸识别模型路径
     recognition: classpath:face_models/face_recognition_sface_2021dec.onnx
   enrollment:
+    # 注册时采集的人脸图片数量
     face-count: 8
+    # 人脸质量阈值，低于此值的人脸将被拒绝
     quality-threshold: 0.5
   recognition:
+    # 人脸识别相似度阈值，低于此值认为是不同人
     threshold: 0.4
+
+# 工具柜配置
+tool:
+  camera:
+    # 摄像头设备编号，0表示第一个摄像头
+    device-id: 0
+  model:
+    # 工具识别模型路径
+    path: classpath:models/tool.onnx
+  recognition:
+    # 工具识别置信度阈值，低于此值的识别结果将被过滤
+    confidence: 0.75
+  yolo-server:
+    # YOLO识别服务地址
+    host: 127.0.0.1
+    # YOLO识别服务端口
+    port: 3031
+    # 请求超时时间（毫秒）
+    timeout: 5000

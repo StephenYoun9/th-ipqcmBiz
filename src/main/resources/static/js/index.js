@@ -270,9 +270,15 @@ function showSuccessModal(userData) {
 
     modal.style.display = 'flex';
 
+    // 登录成功后释放摄像头资源
+    if (globalStream) {
+        globalStream.getTracks().forEach(track => track.stop());
+    }
+    fetch(API_BASE_URL + '/face-video/release', { method: 'GET' }).catch(() => {});
+
     setTimeout(() => {
         window.location.href = userData.userRole === 0 ? 'admin/admin_index.html' : 'employee/employee_index.html';
-    }, 3000);
+    }, 1500);
 }
 
 window.onload = function () {

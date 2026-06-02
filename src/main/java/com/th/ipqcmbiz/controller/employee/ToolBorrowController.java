@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 /**
  * 员工端-工具借还控制器
  */
@@ -50,5 +52,17 @@ public class ToolBorrowController extends BaseController {
     @PostMapping("/return")
     public Result<Boolean> returnTool(@RequestParam String toolCode) {
         return success(toolService.returnTool(toolCode));
+    }
+
+    @Operation(summary = "还工具（指定操作人）")
+    @PostMapping("/return-with-operator")
+    public Result<Boolean> returnToolWithOperator(@RequestParam String toolCode, @RequestParam String returnOperatorId) {
+        return success(toolService.returnTool(toolCode, returnOperatorId));
+    }
+
+    @Operation(summary = "获取借还统计")
+    @GetMapping("/stats")
+    public Result<Map<String, Object>> getStats() {
+        return success(toolService.getBorrowStats());
     }
 }

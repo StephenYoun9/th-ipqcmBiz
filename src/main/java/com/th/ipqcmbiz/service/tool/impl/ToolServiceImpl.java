@@ -5,9 +5,12 @@ import com.github.pagehelper.PageInfo;
 import com.th.ipqcmbiz.context.UserContext;
 import com.th.ipqcmbiz.entity.po.BorrowRecordDO;
 import com.th.ipqcmbiz.entity.po.ToolInfoDO;
+import com.th.ipqcmbiz.entity.po.UserInfoDO;
 import com.th.ipqcmbiz.entity.vo.output.BorrowRecordRespVO;
 import com.th.ipqcmbiz.exception.BusinessException;
+import com.th.ipqcmbiz.mapper.ToolCabinetInventoryMapper;
 import com.th.ipqcmbiz.mapper.ToolMapper;
+import com.th.ipqcmbiz.mapper.UserInfoMapper;
 import com.th.ipqcmbiz.mapper.borrow.BorrowRecordMapper;
 import com.th.ipqcmbiz.service.tool.ToolService;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -26,6 +30,12 @@ public class ToolServiceImpl implements ToolService {
 
     @Autowired
     private BorrowRecordMapper borrowRecordMapper;
+
+    @Autowired
+    private UserInfoMapper userInfoMapper;
+
+    @Autowired
+    private ToolCabinetInventoryMapper inventoryMapper;
 
     private String getRequiredUserId() {
         String userId = UserContext.getUserId();
@@ -128,22 +138,25 @@ public class ToolServiceImpl implements ToolService {
     @Override
     @Transactional
     public boolean returnTool(String toolCode) {
-        String userId = getRequiredUserId();
-        ToolInfoDO tool = toolMapper.selectByCode(toolCode);
-        if (tool == null) {
-            throw new BusinessException(404, "工具不存在");
-        }
+        return returnTool(toolCode, getRequiredUserId());
+    }
 
-        int updated = borrowRecordMapper.updateReturn(toolCode, userId);
+    @Override
+    @Transactional
+    public boolean returnTool(String toolCode, String returnOperatorId) {
+        // 更新借出记录状态为已归还，记录归还操作人
+        int updated = borrowRecordMapper.updateReturn(toolCode, returnOperatorId);
         if (updated <= 0) {
             throw new BusinessException(500, "还工具失败");
         }
 
-        boolean result = toolMapper.updateStatus(toolCode, "AVAILABLE") > 0;
-        if (!result) {
-            throw new BusinessException(500, "还工具失败");
+        // 更新柜子库存状态为"在柜中"(0)
+        int inventoryUpdated = inventoryMapper.updateStatusByToolCode(toolCode, "0");
+        if (inventoryUpdated <= 0) {
+            log.warn("归还工具 {} 时未找到对应的柜子库存记录", toolCode);
         }
-        log.debug("用户 {} 归还了工具 {}", userId, toolCode);
+
+        log.debug("操作人 {} 归还了工具 {}", returnOperatorId, toolCode);
         return true;
     }
 
@@ -166,10 +179,26 @@ public class ToolServiceImpl implements ToolService {
         int offset = (pageNum - 1) * pageSize;
         List<BorrowRecordRespVO> records = borrowRecordMapper.selectWithDetailByUserId(userId, offset, pageSize);
         Long total = borrowRecordMapper.countByUserId(userId);
+        UserInfoDO currentUser = userInfoMapper.selectByUserId(userId);
+        String userName = currentUser != null ? currentUser.getUserName() : userId;
+        for (BorrowRecordRespVO record : records) {
+            record.setUserName(userName);
+        }
         PageInfo<BorrowRecordRespVO> pageInfo = new PageInfo<>(records);
         pageInfo.setTotal(total);
         pageInfo.setPageNum(pageNum);
         pageInfo.setPageSize(pageSize);
         return pageInfo;
+    }
+
+    @Override
+    public Map<String, Object> getBorrowStats() {
+        String userId = getRequiredUserId();
+        Long myBorrowedCount = borrowRecordMapper.countBorrowedByUserId(userId);
+        Long totalBorrowedCount = borrowRecordMapper.countBorrowed();
+        Map<String, Object> stats = new java.util.HashMap<>();
+        stats.put("myBorrowedCount", myBorrowedCount);
+        stats.put("totalBorrowedCount", totalBorrowedCount);
+        return stats;
     }
 }

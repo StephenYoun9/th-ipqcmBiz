@@ -4,6 +4,9 @@ let selectedImageFile = null;
 let existingImageUrl = null;
 let toolPageNum = 1;
 let toolTotal = 0;
+let cameraRunning = false;
+let frameTimer = null;
+let cabinetInitialized = false;
 
 function openAddToolModal() {
     currentEditTool = null;
@@ -302,7 +305,265 @@ function searchTool() {
     loadToolList(keyword);
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+// ==================== 柜子初始化功能 ====================
+
+async function initCabinet() {
+    try {
+        document.getElementById('initStatus').textContent = '初始化中...';
+        updateOperationLog('正在启动摄像头...');
+
+        const startResp = await fetch(API_BASE_URL + '/tool/cabinet/camera/start', {
+            method: 'POST',
+            headers: { [AUTH_HEADER]: sessionStorage.getItem(AUTH_TOKEN_KEY) }
+        });
+        const startData = await startResp.json();
+
+        if (startData.code !== 200) {
+            alert('摄像头启动失败: ' + (startData.message || '未知错误'));
+            document.getElementById('initStatus').textContent = '初始化失败';
+            return;
+        }
+
+        cameraRunning = true;
+        document.getElementById('videoContainer').style.display = 'block';
+        document.getElementById('btnInitCabinet').disabled = true;
+        document.getElementById('btnConfirmInit').disabled = false;
+        document.getElementById('btnCancelInit').style.display = 'inline-block';
+
+        startFramePolling();
+
+        updateOperationLog('摄像头已启动，请调整摄像头位置，实时检测结果将显示在右侧');
+
+    } catch (err) {
+        console.error('初始化失败:', err);
+        alert('初始化失败，请检查后端服务');
+        document.getElementById('initStatus').textContent = '初始化失败';
+        await stopCamera();
+    }
+}
+
+let initDetectedTools = [];
+
+async function confirmInit() {
+    try {
+        const frameResp = await fetch(API_BASE_URL + '/tool/cabinet/frame-info', {
+            method: 'GET',
+            headers: { [AUTH_HEADER]: sessionStorage.getItem(AUTH_TOKEN_KEY) }
+        });
+        const frameData = await frameResp.json();
+
+        if (frameData.code !== 200) {
+            alert('获取检测结果失败: ' + (frameData.message || '未知错误'));
+            return;
+        }
+
+        const detectedTools = frameData.data?.detections || [];
+        if (detectedTools.length === 0) {
+            alert('未检测到任何工具，请确保工具在摄像头视野内');
+            return;
+        }
+
+        initDetectedTools = detectedTools;
+        const toolCodes = detectedTools.map((d, idx) => d.label);
+        const positions = detectedTools.map((_, idx) => {
+            const row = String.fromCharCode(65 + Math.floor(idx / 3));
+            const col = (idx % 3) + 1;
+            return row + col;
+        });
+
+        document.getElementById('initStatus').textContent = '正在初始化...';
+        updateOperationLog('检测到 ' + toolCodes.length + ' 个工具，正在提交...');
+
+        const initResp = await fetch(API_BASE_URL + '/tool/cabinet/init', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                [AUTH_HEADER]: sessionStorage.getItem(AUTH_TOKEN_KEY)
+            },
+            body: JSON.stringify({
+                toolCodes: toolCodes,
+                positions: positions
+            })
+        });
+
+        const initData = await initResp.json();
+
+        if (initData.code === 200) {
+            cabinetInitialized = true;
+            document.getElementById('initStatus').textContent = '已初始化 - ' + toolCodes.length + '个位置';
+            document.getElementById('btnInitCabinet').disabled = false;
+            document.getElementById('btnConfirmInit').disabled = true;
+            document.getElementById('btnCancelInit').style.display = 'none';
+            updateOperationLog('柜子已初始化，共' + toolCodes.length + '个位置: ' + toolCodes.join(', '));
+            loadInventory();
+        } else {
+            alert('初始化失败: ' + (initData.message || '未知错误'));
+            document.getElementById('initStatus').textContent = '初始化失败';
+        }
+
+        await stopCamera();
+
+    } catch (err) {
+        console.error('初始化失败:', err);
+        alert('初始化失败，请检查后端服务');
+        document.getElementById('initStatus').textContent = '初始化失败';
+        await stopCamera();
+    }
+}
+
+async function cancelInit() {
+    document.getElementById('btnInitCabinet').disabled = false;
+    document.getElementById('btnConfirmInit').disabled = true;
+    document.getElementById('btnCancelInit').style.display = 'none';
+    document.getElementById('initStatus').textContent = '未初始化';
+    document.getElementById('inventoryPanel').style.display = 'none';
+    updateOperationLog('取消初始化');
+    await stopCamera();
+}
+
+async function loadInventory() {
+    try {
+        const response = await fetch(API_BASE_URL + '/tool/cabinet/inventory', {
+            method: 'GET',
+            headers: { [AUTH_HEADER]: sessionStorage.getItem(AUTH_TOKEN_KEY) }
+        });
+        const data = await response.json();
+
+        if (data.code === 200) {
+            const inventoryList = data.data || [];
+            const tbody = document.getElementById('inventoryTableBody');
+            tbody.innerHTML = '';
+
+            if (inventoryList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:8px;">暂无工具</td></tr>';
+            } else {
+                inventoryList.forEach(item => {
+                    const tr = document.createElement('tr');
+                    const statusText = item.status === '0' ? '在柜中' : '空位';
+                    const statusColor = item.status === '0' ? '#2ecc71' : '#e74c3c';
+                    tr.innerHTML = `
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${item.position}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${item.toolCode}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${item.toolCodeName || '-'}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: center; color: ${statusColor};">${statusText}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            document.getElementById('inventoryPanel').style.display = 'block';
+        }
+    } catch (err) {
+        console.error('加载库存失败:', err);
+    }
+}
+
+async function startCamera() {
+    try {
+        const response = await fetch(API_BASE_URL + '/tool/cabinet/camera/start', {
+            method: 'POST',
+            headers: { [AUTH_HEADER]: sessionStorage.getItem(AUTH_TOKEN_KEY) }
+        });
+        const data = await response.json();
+
+        if (data.code === 200) {
+            cameraRunning = true;
+            document.getElementById('videoContainer').style.display = 'block';
+            startFramePolling();
+            updateOperationLog('摄像头已启动');
+            return true;
+        } else {
+            alert('摄像头启动失败: ' + (data.message || '未知错误'));
+            return false;
+        }
+    } catch (err) {
+        console.error('摄像头启动失败:', err);
+        alert('摄像头启动失败，请检查摄像头连接');
+        return false;
+    }
+}
+
+async function stopCamera() {
+    if (frameTimer) {
+        clearInterval(frameTimer);
+        frameTimer = null;
+    }
+
+    try {
+        await fetch(API_BASE_URL + '/tool/cabinet/camera/release', {
+            method: 'POST',
+            headers: { [AUTH_HEADER]: sessionStorage.getItem(AUTH_TOKEN_KEY) }
+        });
+    } catch (err) {
+        console.error('摄像头释放失败:', err);
+    }
+
+    cameraRunning = false;
+    document.getElementById('videoContainer').style.display = 'none';
+}
+
+function startFramePolling() {
+    frameTimer = setInterval(async () => {
+        if (!cameraRunning) {
+            clearInterval(frameTimer);
+            return;
+        }
+
+        const img = document.getElementById('videoFrame');
+        img.src = API_BASE_URL + '/tool-recognition/frame?t=' + Date.now();
+
+        try {
+            const response = await fetch(API_BASE_URL + '/tool/cabinet/frame-info', {
+                method: 'GET',
+                headers: { [AUTH_HEADER]: sessionStorage.getItem(AUTH_TOKEN_KEY) }
+            });
+            const data = await response.json();
+
+            if (data.code === 200 && data.data) {
+                updateDetectionDisplay(data.data);
+            }
+        } catch (err) {
+            console.error('获取识别结果失败:', err);
+        }
+    }, 300);
+}
+
+function updateDetectionDisplay(data) {
+    const currentDetectedTools = data.detectedTools || [];
+
+    const listEl = document.getElementById('detectionList');
+    const statusEl = document.getElementById('recognitionStatus');
+
+    if (currentDetectedTools.length === 0) {
+        listEl.innerHTML = '<li>暂无检测结果</li>';
+        statusEl.textContent = '未检测到工具';
+    } else {
+        listEl.innerHTML = currentDetectedTools.map(tool =>
+            '<li>' + getToolChineseName(tool) + ' (' + tool + ')</li>'
+        ).join('');
+        statusEl.textContent = '检测到 ' + currentDetectedTools.length + ' 种工具';
+    }
+}
+
+function getToolChineseName(toolCode) {
+    if (!toolCode) return '';
+    const labelMap = {
+        'wrench': '扳手',
+        'screwdriver': '螺丝刀',
+        'pliers': '钳子'
+    };
+    return labelMap[toolCode] || toolCode;
+}
+
+function updateOperationLog(message) {
+    const logEl = document.getElementById('operationLog');
+    if (logEl) {
+        const timestamp = new Date().toLocaleTimeString();
+        logEl.innerHTML = '[' + timestamp + '] ' + message;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
     loadToolList(document.getElementById('searchKeyword').value);
 
     const searchInput = document.getElementById('searchKeyword');
@@ -312,5 +573,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 searchTool();
             }
         });
+    }
+
+    // 检查柜子初始化状态
+    try {
+        const response = await fetch(API_BASE_URL + '/tool/cabinet/inventory', {
+            method: 'GET',
+            headers: { [AUTH_HEADER]: sessionStorage.getItem(AUTH_TOKEN_KEY) }
+        });
+        const data = await response.json();
+
+        if (data.code === 200 && data.data && data.data.length > 0) {
+            cabinetInitialized = true;
+            document.getElementById('initStatus').textContent = '已初始化 - ' + data.data.length + '个位置';
+            updateOperationLog('检测到柜子已初始化，共' + data.data.length + '个位置');
+            loadInventory();
+        }
+    } catch (err) {
+        console.log('检查柜子状态失败:', err);
     }
 });

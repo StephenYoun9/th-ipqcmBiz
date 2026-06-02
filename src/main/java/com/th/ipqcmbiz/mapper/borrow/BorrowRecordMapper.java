@@ -11,6 +11,8 @@ import java.util.List;
 @Mapper
 public interface BorrowRecordMapper {
 
+    BorrowRecordDO selectById(@Param("id") Long id);
+
     List<BorrowRecordDO> selectByUserId(@Param("userId") String userId,
                                         @Param("offset") int offset,
                                         @Param("limit") int limit);
@@ -23,9 +25,15 @@ public interface BorrowRecordMapper {
 
     Long countBorrowedByUserId(@Param("userId") String userId);
 
+    Long countBorrowed();
+
+    Integer countBorrowedByToolCode(@Param("toolCode") String toolCode);
+
     int insert(BorrowRecordDO record);
 
-    int updateReturn(@Param("toolCode") String toolCode, @Param("userId") String userId);
+    int updateReturn(@Param("toolCode") String toolCode, @Param("returnOperatorId") String returnOperatorId);
+
+    BorrowRecordDO selectBorrowedByToolCode(@Param("toolCode") String toolCode);
 
     Page<BorrowRecordRespVO> selectWithDetailByUserId(@Param("userId") String userId,
                                                        @Param("offset") int offset,

@@ -10,6 +10,8 @@
         <result property="returnTime" column="RETURN_TIME"/>
         <result property="status" column="STATUS"/>
         <result property="operatorType" column="OPERATOR_TYPE"/>
+        <result property="cabinetNo" column="CABINET_NO"/>
+        <result property="returnOperatorId" column="RETURN_OPERATOR_ID"/>
     </resultMap>
 
     <resultMap id="DetailResultMap" type="com.th.ipqcmbiz.entity.vo.output.BorrowRecordRespVO">
@@ -26,6 +28,19 @@
         <result property="operatorType" column="OPERATOR_TYPE"/>
     </resultMap>
 
+    <select id="selectWithDetailByUserId" resultMap="DetailResultMap">
+        SELECT br.ID, br.TOOL_CODE, t.TOOL_NAME, br.CABINET_NO,
+
+               br.USER_ID, br.BORROW_TIME, br.RETURN_TIME,
+               br.STATUS, br.OPERATOR_TYPE,
+               CASE br.STATUS WHEN 'BORROWED' THEN '已借出' WHEN 'RETURNED' THEN '已归还' WHEN 'OVERDUE' THEN '已逾期' ELSE br.STATUS END AS STATUS_NAME
+        FROM BORROW_RECORD br
+        LEFT JOIN TOOL_INFO t ON br.TOOL_CODE = t.TOOL_CODE
+        WHERE br.USER_ID = #{userId}
+        ORDER BY br.BORROW_TIME DESC
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    </select>
+
     <select id="selectByUserId" resultMap="BaseResultMap">
         SELECT ID, TOOL_CODE, USER_ID, BORROW_TIME, RETURN_TIME, STATUS, OPERATOR_TYPE
         FROM BORROW_RECORD
@@ -39,7 +54,7 @@
     </select>
 
     <select id="selectBorrowedByUserId" resultMap="BaseResultMap">
-        SELECT ID, TOOL_CODE, USER_ID, BORROW_TIME, RETURN_TIME, STATUS, OPERATOR_TYPE
+        SELECT ID, TOOL_CODE, USER_ID, BORROW_TIME, RETURN_TIME, STATUS, OPERATOR_TYPE, CABINET_NO
         FROM BORROW_RECORD
         WHERE USER_ID = #{userId} AND STATUS = 'BORROWED'
         ORDER BY BORROW_TIME DESC
@@ -50,29 +65,20 @@
         SELECT COUNT(*) FROM BORROW_RECORD WHERE USER_ID = #{userId} AND STATUS = 'BORROWED'
     </select>
 
-    <select id="selectWithDetailByUserId" resultMap="DetailResultMap">
-        SELECT br.ID, br.TOOL_CODE, t.TOOL_NAME, t.CABINET_NO,
-               br.USER_ID, u.USERNAME, br.BORROW_TIME, br.RETURN_TIME,
-               br.STATUS, br.OPERATOR_TYPE,
-               CASE br.STATUS WHEN 'BORROWED' THEN '已借出' WHEN 'RETURNED' THEN '已归还' WHEN 'OVERDUE' THEN '已逾期' ELSE br.STATUS END AS STATUS_NAME
-        FROM BORROW_RECORD br
-        LEFT JOIN TOOL_INFO t ON br.TOOL_CODE = t.TOOL_CODE
-        LEFT JOIN USER_INFO u ON br.USER_ID = u.USERID
-        WHERE br.USER_ID = #{userId}
-        ORDER BY br.BORROW_TIME DESC
-        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+    <select id="countBorrowed" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM BORROW_RECORD WHERE STATUS = 'BORROWED'
     </select>
 
-    <insert id="insert">
-        INSERT INTO BORROW_RECORD (ID, TOOL_CODE, USER_ID, BORROW_TIME, STATUS, OPERATOR_TYPE)
-        VALUES (BORROW_RECORD_SEQ.NEXTVAL, #{toolCode}, #{userId}, SYSDATE, 'BORROWED', #{operatorType})
-    </insert>
+    <select id="countBorrowedByToolCode" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM BORROW_RECORD WHERE TOOL_CODE = #{toolCode} AND STATUS = 'BORROWED'
+    </select>
 
-    <update id="updateReturn">
-        UPDATE BORROW_RECORD
-        SET RETURN_TIME = SYSDATE, STATUS = 'RETURNED'
-        WHERE TOOL_CODE = #{toolCode} AND USER_ID = #{userId} AND STATUS = 'BORROWED'
-    </update>
+    <select id="selectBorrowedByToolCode" resultMap="BaseResultMap">
+        SELECT ID, TOOL_CODE, USER_ID, BORROW_TIME, RETURN_TIME, STATUS, OPERATOR_TYPE, CABINET_NO, RETURN_OPERATOR_ID
+        FROM BORROW_RECORD
+        WHERE TOOL_CODE = #{toolCode} AND STATUS = 'BORROWED'
+        FETCH NEXT 1 ROWS ONLY
+    </select>
 
     <select id="selectForOperationLog" resultMap="BaseResultMap">
         SELECT ID, TOOL_CODE, USER_ID, BORROW_TIME, RETURN_TIME, STATUS, OPERATOR_TYPE
@@ -111,5 +117,22 @@
             AND OPERATOR_TYPE = #{operatorType}
         </if>
     </select>
+
+    <insert id="insert" parameterType="com.th.ipqcmbiz.entity.po.BorrowRecordDO">
+        <selectKey keyProperty="id" resultType="Long" order="BEFORE">
+            SELECT BORROW_RECORD_SEQ.NEXTVAL FROM DUAL
+        </selectKey>
+        INSERT INTO BORROW_RECORD (ID, TOOL_CODE, USER_ID, BORROW_TIME, STATUS, OPERATOR_TYPE, CABINET_NO, RETURN_OPERATOR_ID)
+        VALUES (#{id}, #{toolCode}, #{userId}, #{borrowTime}, #{status}, #{operatorType}, #{cabinetNo}, #{returnOperatorId, jdbcType=VARCHAR})
+    </insert>
+
+    <update id="updateReturn">
+        UPDATE BORROW_RECORD
+        SET STATUS = 'RETURNED',
+            RETURN_TIME = SYSDATE,
+            RETURN_OPERATOR_ID = #{returnOperatorId}
+        WHERE TOOL_CODE = #{toolCode}
+          AND STATUS = 'BORROWED'
+    </update>
 
 </mapper>

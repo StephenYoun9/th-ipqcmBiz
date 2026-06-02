@@ -17,6 +17,49 @@
 </div>
 
 <div class="card">
+  <h2>柜子初始化</h2>
+  <div style="margin-bottom: 20px; padding: 10px; background: #f5f5f5; border-radius: 5px;">
+    <button class="btn btn-warning" id="btnInitCabinet" onclick="initCabinet()">初始化柜中工具</button>
+    <button class="btn btn-success" id="btnConfirmInit" onclick="confirmInit()" disabled>确认初始化</button>
+    <button class="btn btn-default" id="btnCancelInit" onclick="cancelInit()" style="display:none;">取消</button>
+    <span class="status-text" id="initStatus">未初始化</span>
+  </div>
+
+  <!-- 视频监控区域 -->
+  <div class="video-container" id="videoContainer" style="display: none;">
+    <div class="video-wrapper">
+      <img id="videoFrame" src="" alt="视频流">
+      <div class="detection-overlay" id="detectionOverlay">
+        <h4>检测到的工具</h4>
+        <ul class="detection-list" id="detectionList">
+          <li>暂无检测结果</li>
+        </ul>
+      </div>
+    </div>
+    <div class="video-controls">
+      <span id="recognitionStatus">正在识别...</span>
+    </div>
+  </div>
+
+  <!-- 柜中工具列表 -->
+  <div class="inventory-panel" id="inventoryPanel" style="display: none; margin-top: 20px;">
+    <h4>柜中工具列表</h4>
+    <table class="inventory-table" id="inventoryTable" style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #f5f5f5;">
+          <th style="padding: 8px; border: 1px solid #ddd;">位置</th>
+          <th style="padding: 8px; border: 1px solid #ddd;">工具编号</th>
+          <th style="padding: 8px; border: 1px solid #ddd;">工具名称</th>
+          <th style="padding: 8px; border: 1px solid #ddd;">状态</th>
+        </tr>
+      </thead>
+      <tbody id="inventoryTableBody">
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
   <h2>工具管理</h2>
   <div style="display: flex; gap: 10px; margin-top: 10px; align-items: center;">
     <button class="btn btn-primary" onclick="openAddToolModal()">上架新工具</button>
@@ -99,7 +142,16 @@
     </div>
   </div>
 </div>
-<script src="../js/constants.js"></script>
+
+<!-- 操作日志 -->
+<div class="card">
+  <h3>操作记录</h3>
+  <div id="operationLog" class="alert alert-info" style="margin-bottom: 0;">
+    请点击"初始化柜中工具"开始柜子初始化流程
+  </div>
+</div>
+
+<script src="../js/constants.js"></script></script>
 <script src="../js/auth.js"></script>
 <script src="js/admin_tool.js"></script>
 <script>

@@ -163,7 +163,10 @@ function startCollect() {
 
     fetch(API_BASE_URL + '/face/enroll/start', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            [AUTH_HEADER]: sessionStorage.getItem(AUTH_TOKEN_KEY)
+        },
         body: JSON.stringify({ userId: userId, faceCount: 8 })
     })
     .then(res => res.json())
@@ -197,7 +200,10 @@ function captureFace() {
         .then(imageData => {
             return fetch(API_BASE_URL + '/face/enroll/capture/image', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    [AUTH_HEADER]: sessionStorage.getItem(AUTH_TOKEN_KEY)
+                },
                 body: JSON.stringify({ enrollId: enrollId, userId: userId, image: imageData })
             });
         })
@@ -243,7 +249,10 @@ function completeCollect() {
 
     fetch(API_BASE_URL + '/face/enroll/complete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            [AUTH_HEADER]: sessionStorage.getItem(AUTH_TOKEN_KEY)
+        },
         body: JSON.stringify({ enrollId: enrollId })
     })
     .then(res => res.json())

@@ -29,13 +29,15 @@ function loadBorrowRecords(pageNum) {
                 const statusMap = {
                     'BORROWED': '已借出',
                     'RETURNED': '已归还',
-                    'OVERDUE': '已逾期'
+                    'OVERDUE': '已逾期',
+                    'PENDING': '待处理'
                 };
                 const statusText = record.statusName || statusMap[record.status] || record.status;
-                const statusClass = record.status === 'BORROWED' ? 'status-warning' : 'status-success';
+                const statusClass = record.status === 'BORROWED' || record.status === 'PENDING' ? 'status-warning' : 'status-success';
+                const toolName = translateToolName(record.toolCode);
                 html += `<tr>
                     <td>${record.toolCode || '-'}</td>
-                    <td>${record.toolName || '-'}</td>
+                    <td>${toolName}</td>
                     <td>${record.cabinetNo || '-'}</td>
                     <td>${formatDate(record.borrowTime)}</td>
                     <td>${formatDate(record.returnTime)}</td>
@@ -54,6 +56,16 @@ function loadBorrowRecords(pageNum) {
         document.getElementById('borrowTableBody').innerHTML =
             '<tr><td colspan="3" style="text-align: center;">加载失败</td></tr>';
     });
+}
+
+function translateToolName(toolCode) {
+    if (!toolCode) return '-';
+    const nameMap = {
+        'wrench': '扳手',
+        'screwdriver': '螺丝刀',
+        'pliers': '钳子'
+    };
+    return nameMap[toolCode] || toolCode;
 }
 
 function renderBorrowPagination() {
@@ -144,7 +156,26 @@ function escapeHtml(text) {
 document.addEventListener('DOMContentLoaded', function() {
     loadBorrowRecords();
     loadAnnouncements();
+    loadBorrowStats();
 });
+
+function loadBorrowStats() {
+    fetch(API_BASE_URL + '/employee/tool/stats', {
+        method: 'GET',
+        headers: { [AUTH_HEADER]: sessionStorage.getItem(AUTH_TOKEN_KEY) }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.code === 200 && data.data) {
+            document.getElementById('myBorrowedCount').textContent = data.data.myBorrowedCount || 0;
+            document.getElementById('totalBorrowedCount').textContent = data.data.totalBorrowedCount || 0;
+            document.getElementById('borrowStats').style.display = 'block';
+        }
+    })
+    .catch(err => {
+        console.error('Failed to load borrow stats:', err);
+    });
+}
 
 function openImagePreview(url) {
     const modal = document.getElementById('imagePreviewModal');

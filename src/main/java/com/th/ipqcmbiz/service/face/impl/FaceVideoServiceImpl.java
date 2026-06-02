@@ -45,6 +45,15 @@ public class FaceVideoServiceImpl implements FaceVideoService {
     /** 是否已初始化（懒加载模式，首次使用时初始化） */
     private volatile boolean initialized = false;
 
+    /** 最后访问时间（毫秒），用于检测客户端是否断开 */
+    private volatile long lastAccessTime = 0;
+
+    /** 摄像头空闲超时时间（毫秒），超过此时间未访问则释放摄像头 */
+    private static final long CAMERA_IDLE_TIMEOUT_MS = 30000;
+
+    /** 清理任务执行周期（毫秒） */
+    private static final long CLEANUP_INTERVAL_MS = 5000;
+
     /** 初始化锁，防止并发重复初始化 */
     private final Object initLock = new Object();
 
@@ -112,23 +121,81 @@ public class FaceVideoServiceImpl implements FaceVideoService {
                 initCapture();
                 startGrabThread();
                 initialized = true;
+                lastAccessTime = System.currentTimeMillis();
+                startCleanupTask();
             } catch (Exception e) {
                 log.error("摄像头启动失败: {}", e.getMessage(), e);
             }
         }
     }
 
+    private Thread cleanupThread;
+    private volatile boolean cleanupRunning = false;
+
+    private void startCleanupTask() {
+        if (cleanupThread != null && cleanupThread.isAlive()) {
+            return;
+        }
+        cleanupRunning = true;
+        cleanupThread = new Thread(() -> {
+            log.info("摄像头清理任务启动");
+            while (cleanupRunning && isRunning.get()) {
+                try {
+                    Thread.sleep(CLEANUP_INTERVAL_MS);
+                    if (!isRunning.get() || !initialized) {
+                        break;
+                    }
+                    long idleTime = System.currentTimeMillis() - lastAccessTime;
+                    if (idleTime > CAMERA_IDLE_TIMEOUT_MS && isRunning.get()) {
+                        log.info("摄像头空闲超过{}秒，自动释放", CAMERA_IDLE_TIMEOUT_MS / 1000);
+                        releaseCamera();
+                        break;
+                    }
+                } catch (Exception e) {
+                    if (cleanupRunning) {
+                        log.warn("清理任务异常: {}", e.getMessage());
+                    }
+                }
+            }
+            log.info("摄像头清理任务结束");
+        }, "camera-cleanup-thread");
+        cleanupThread.setDaemon(true);
+        cleanupThread.start();
+    }
+
     /**
      * 初始化摄像头连接
-     * 使用本机设备索引1的摄像头（CAP_DSHOW后端，Windows推荐）
+     * 使用本机设备索引0的摄像头（CAP_DSHOW后端，Windows推荐）
      */
     private void initCapture() throws Exception {
-        log.info("正在打开摄像头（设备索引1, CAP_DSHOW）...");
-        capture = new VideoCapture(1 + org.opencv.videoio.Videoio.CAP_DSHOW);
-        log.info("VideoCapture对象创建完成，isOpened={}", capture.isOpened());
+        log.info("正在打开摄像头（设备索引0, CAP_DSHOW）...");
 
-        if (!capture.isOpened()) {
-            throw new RuntimeException("无法打开摄像头（设备索引1），请检查摄像头是否连接");
+        Exception lastException = null;
+        for (int i = 0; i < 5; i++) {
+            try {
+                // 确保之前的capture已完全释放
+                releaseCaptureQuietly();
+                Thread.sleep(500 + i * 500);
+
+                capture = new VideoCapture(0 + org.opencv.videoio.Videoio.CAP_DSHOW);
+                log.info("VideoCapture对象创建完成，isOpened={}", capture.isOpened());
+
+                if (capture.isOpened()) {
+                    break;
+                }
+
+                log.warn("摄像头打开失败，第{}次重试...", i + 1);
+                lastException = new RuntimeException("无法打开摄像头（设备索引0），请检查摄像头是否连接");
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("摄像头打开异常，第{}次重试: {}", i + 1, e.getMessage());
+                releaseCaptureQuietly();
+            }
+        }
+
+        if (capture == null || !capture.isOpened()) {
+            throw lastException != null ? lastException :
+                new RuntimeException("无法打开摄像头（设备索引0），请检查摄像头是否连接");
         }
 
         // 优化参数：缓冲区只留1帧，减少延迟
@@ -159,17 +226,35 @@ public class FaceVideoServiceImpl implements FaceVideoService {
 
             long lastFrameTime = System.currentTimeMillis();
 
-            while (isRunning.get() && !Thread.currentThread().isInterrupted()) {
+            while (isRunning.get()) {
                 try {
+                    if (Thread.currentThread().isInterrupted()) {
+                        log.info("检测到中断信号，准备退出线程");
+                        break;
+                    }
+
                     if (capture == null || !capture.isOpened()) {
                         Thread.sleep(1000);
-                        reconnect();
+                        if (isRunning.get()) {
+                            reconnect();
+                        }
                         continue;
                     }
 
-                    if (!capture.read(frame) || frame.empty()) {
+                    // 在 read 之前检查是否应该退出
+                    if (!isRunning.get()) {
+                        log.info("isRunning变为false，准备退出线程");
+                        break;
+                    }
+
+                    boolean readResult = capture.read(frame);
+                    if (!readResult || frame.empty()) {
                         Thread.sleep(5);
                         continue;
+                    }
+
+                    if (!isRunning.get()) {
+                        break;
                     }
 
                     frameCount++;
@@ -294,15 +379,29 @@ public class FaceVideoServiceImpl implements FaceVideoService {
         }
     }
 
+    /**
+     * 静默释放摄像头资源（不抛异常）
+     */
+    private void releaseCaptureQuietly() {
+        if (capture != null) {
+            try {
+                capture.release();
+            } catch (Exception ignored) {}
+            capture = null;
+        }
+    }
+
     @Override
     public byte[] getLatestJpeg() {
         ensureCameraStarted();
+        lastAccessTime = System.currentTimeMillis();
         return latestFrame.get();
     }
 
     @Override
     public FaceFrameInfo getLatestFrameWithInfo() {
         ensureCameraStarted();
+        lastAccessTime = System.currentTimeMillis();
         byte[] jpeg = latestFrame.get();
         if (jpeg == null || jpeg.length == 0) {
             return null;
@@ -323,14 +422,39 @@ public class FaceVideoServiceImpl implements FaceVideoService {
 
     @Override
     public void releaseCamera() {
+        log.info("releaseCamera called: initialized={}, isRunning={}, grabThread={}",
+                initialized, isRunning.get(), grabThread);
         initialized = false;
         isRunning.set(false);
+        cleanupRunning = false;
+        if (cleanupThread != null) {
+            cleanupThread.interrupt();
+            cleanupThread = null;
+        }
         if (grabThread != null) {
+            log.info("Interrupting grabThread, isAlive={}", grabThread.isAlive());
             grabThread.interrupt();
+            // 先尝试正常 join
             try {
-                grabThread.join(3000);
-            } catch (Exception ignored) {}
+                grabThread.join(2000);
+                log.info("grabThread.join(2000) done, isAlive={}", grabThread.isAlive());
+            } catch (Exception e) {
+                log.warn("join exception: {}", e.getMessage());
+            }
+            // 如果线程还活着，强制释放 capture 来解除阻塞
+            if (grabThread.isAlive()) {
+                log.warn("grabThread still alive, forcing capture release to unblock read()");
+                releaseCapture();
+                try {
+                    grabThread.join(3000);
+                    log.info("grabThread.join(3000) after capture release done, isAlive={}", grabThread.isAlive());
+                } catch (Exception e) {
+                    log.warn("join exception: {}", e.getMessage());
+                }
+            }
             grabThread = null;
+        } else {
+            log.info("grabThread is null, skip interrupt");
         }
         releaseCapture();
         latestFrame.set(null);
@@ -347,7 +471,7 @@ public class FaceVideoServiceImpl implements FaceVideoService {
     public Result reinitCamera() {
         try {
             releaseCamera();
-            Thread.sleep(500);
+            Thread.sleep(5000);
             initCapture();
             startGrabThread();
             initialized = true;

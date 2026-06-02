@@ -52,7 +52,8 @@ public class AuthInterceptor implements HandlerInterceptor {
             "/auth/",
             "/swagger-ui",
             "/v3/api-docs",
-            "/common/"
+            "/common/",
+            "/face-video/"
     );
 
     private boolean isExcluded(String requestUri) {

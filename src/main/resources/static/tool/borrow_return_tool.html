@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>智能工具柜 - 借还工具</title>
+  <link rel="stylesheet" href="../css/common.css">
+  <link rel="stylesheet" href="css/borrow_tool.css">
+</head>
+<body>
+<div class="header">
+  <div class="logo">智能工具柜管理系统</div>
+  <div class="user-info">
+    <a href="../employee/employee_index.html" class="btn btn-default">返回主界面</a>
+    <a class="btn btn-danger" href="javascript:void(0)" onclick="logout()">退出登录</a>
+    <span></span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>借还工具</h2>
+
+  <!-- 柜门控制区域 -->
+  <div style="margin-bottom: 20px;">
+    <button class="btn btn-primary" id="btnOpenDoor" onclick="openDoor()">打开柜门</button>
+    <button class="btn btn-success" id="btnCompleteOp" onclick="completeOperation()" disabled style="display:none;">完成操作</button>
+    <button class="btn btn-default" id="btnCancel" onclick="cancelOperation()" style="display:none; margin-left: 10px;">取消</button>
+    <span class="status-text" id="doorStatus">准备就绪</span>
+    <span id="initStatus" style="margin-left: 15px; color: #999;"></span>
+  </div>
+
+  <!-- 视频监控区域 -->
+  <div class="video-container" id="videoContainer" style="display: none;">
+    <div class="video-wrapper">
+      <img id="videoFrame" src="" alt="视频流">
+      <div class="detection-overlay" id="detectionOverlay">
+        <h4>实时检测结果</h4>
+        <ul class="detection-list" id="detectionList">
+          <li>暂无检测结果</li>
+        </ul>
+      </div>
+    </div>
+    <div class="video-controls">
+      <span id="recognitionStatus">正在识别...</span>
+    </div>
+  </div>
+
+  <!-- 操作结果确认区域 -->
+  <div class="borrow-confirm-panel" id="resultPanel" style="display: none; margin-top: 20px; padding: 15px; background: #f0f8ff; border-radius: 5px;">
+    <h4>请确认本次操作结果</h4>
+    <p style="color: #666; font-size: 14px;">初始柜中: <span id="initialToolsDisplay"></span></p>
+    <p style="color: #666; font-size: 14px;">当前检测: <span id="currentToolsDisplay"></span></p>
+    <div style="margin: 15px 0;">
+      <p style="color: #2e7d32; font-size: 15px; font-weight: bold;">借了: <span id="borrowedDisplay"></span></p>
+      <p style="color: #c62828; font-size: 15px; font-weight: bold;">还了: <span id="returnedDisplay"></span></p>
+    </div>
+    <div>
+      <button class="btn btn-success" onclick="confirmResult()">确认</button>
+      <button class="btn btn-default" onclick="reDetect()" style="margin-left: 10px;">重新识别</button>
+      <button class="btn btn-default" onclick="cancelOperation()" style="margin-left: 10px;">取消</button>
+    </div>
+  </div>
+
+  <!-- 柜中工具列表 -->
+  <div class="inventory-panel" id="inventoryPanel" style="display: none; margin-top: 20px;">
+    <h4>柜中工具列表</h4>
+    <table class="inventory-table" id="inventoryTable" style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #f5f5f5;">
+          <th style="padding: 8px; border: 1px solid #ddd;">位置</th>
+          <th style="padding: 8px; border: 1px solid #ddd;">工具编号</th>
+          <th style="padding: 8px; border: 1px solid #ddd;">工具名称</th>
+          <th style="padding: 8px; border: 1px solid #ddd;">状态</th>
+        </tr>
+      </thead>
+      <tbody id="inventoryTableBody">
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 操作日志 -->
+<div class="card">
+  <h3>本次操作记录</h3>
+  <div id="operationLog" class="alert alert-info">
+    请点击"打开柜门"开始借还工具流程
+  </div>
+</div>
+<script src="../js/constants.js"></script>
+<script src="../js/auth.js"></script>
+<script src="js/borrow_return_tool.js"></script>
+<script>
+if (!initPageAuth(SESSION_TIMEOUT)) {
+    // Already redirected to login
+} else {
+    const userInfo = getUserInfo();
+    if (userInfo) {
+        const spanEl = document.querySelector('.user-info span');
+        if (spanEl) {
+            spanEl.textContent = '当前登录：' + (userInfo.userName || '未知') + '（工号：' + (userInfo.userId || '') + '）';
+        }
+    }
+}
+</script>
+</body>
+</html>

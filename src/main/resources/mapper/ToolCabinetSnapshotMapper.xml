@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.th.ipqcmbiz.mapper.ToolCabinetSnapshotMapper">
+
+    <resultMap id="BaseResultMap" type="com.th.ipqcmbiz.entity.po.ToolCabinetSnapshotDO">
+        <id column="ID" property="id"/>
+        <result column="CABINET_NO" property="cabinetNo"/>
+        <result column="TOOL_CODE" property="toolCode"/>
+        <result column="POSITION" property="position"/>
+        <result column="SNAPSHOT_TYPE" property="snapshotType"/>
+        <result column="BORROW_RECORD_ID" property="borrowRecordId"/>
+        <result column="CREATE_TIME" property="createTime"/>
+    </resultMap>
+
+    <select id="selectByBorrowRecordId" resultMap="BaseResultMap">
+        SELECT ID, CABINET_NO, TOOL_CODE, POSITION, SNAPSHOT_TYPE, BORROW_RECORD_ID, CREATE_TIME
+        FROM TOOL_CABINET_SNAPSHOT
+        WHERE BORROW_RECORD_ID = #{borrowRecordId}
+        ORDER BY SNAPSHOT_TYPE, POSITION
+    </select>
+
+    <select id="selectByBorrowRecordIdAndType" resultMap="BaseResultMap">
+        SELECT ID, CABINET_NO, TOOL_CODE, POSITION, SNAPSHOT_TYPE, BORROW_RECORD_ID, CREATE_TIME
+        FROM TOOL_CABINET_SNAPSHOT
+        WHERE BORROW_RECORD_ID = #{borrowRecordId}
+          AND SNAPSHOT_TYPE = #{snapshotType}
+        ORDER BY POSITION
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO TOOL_CABINET_SNAPSHOT (CABINET_NO, TOOL_CODE, POSITION, SNAPSHOT_TYPE, BORROW_RECORD_ID)
+        VALUES (#{cabinetNo}, #{toolCode}, #{position}, #{snapshotType}, #{borrowRecordId})
+    </insert>
+
+    <insert id="batchInsert">
+        INSERT ALL
+        <foreach collection="list" item="item">
+            INTO TOOL_CABINET_SNAPSHOT (ID, CABINET_NO, TOOL_CODE, POSITION, SNAPSHOT_TYPE, BORROW_RECORD_ID)
+            VALUES (#{item.id}, #{item.cabinetNo}, #{item.toolCode}, #{item.position}, #{item.snapshotType}, #{item.borrowRecordId})
+        </foreach>
+        SELECT 1 FROM DUAL
+    </insert>
+
+    <delete id="deleteByBorrowRecordId">
+        DELETE FROM TOOL_CABINET_SNAPSHOT
+        WHERE BORROW_RECORD_ID = #{borrowRecordId}
+    </delete>
+
+</mapper>
